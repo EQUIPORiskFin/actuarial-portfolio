@@ -1,0 +1,816 @@
+---
+title: "Metodologia_1"
+author: "Seguros"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+\begin{abstract}
+{En este reporte se presentan los códigos empleados para el cálculo y generación de elementos cuantitativos para LMR 2026}
+\end{abstract}
+\tableofcontents
+
+\section{Introducción}
+
+El Límite Máximo de Retención (LMR) es un parámetro crítico en la gestión de riesgos de aseguradoras, ya que determina la exposición máxima que la compañía puede asumir sin comprometer su solvencia. Su cálculo debe considerar la normativa vigente, la estructura de reaseguro y la suficiencia de capital, garantizando la estabilidad financiera ante eventos adversos.
+```{r Importación general de datos, include=FALSE}
+library(ggplot2)
+library(MASS)
+library(goftest)
+library(fitdistrplus)
+library(patchwork)
+qq_data <- function(x, y, label) {
+  data.frame(
+    x = sort(x),
+    y = sort(y),
+    grupo = label
+  )
+}
+############Importación bases
+library(readr)
+library(dplyr)
+library(ggplot2)
+#Cambiar según el directorio donde este la base
+ruta = "C:/Users/agarciadeleon/R_Studio/Scripts/Carp1"
+setwd(ruta)
+Vigor <- read_csv("Vigor_GENERADO.csv",
+                  col_types = cols(F_EMI = col_date(format = "%d/%m/%Y"),
+                           FE_INI = col_date(format = "%d/%m/%Y"),
+                            F_FIN = col_date(format = "%d/%m/%Y")))
+#Una vez importados se quitan valores ausentes
+B = subset(Vigor, !is.na(Vigor$POL))
+unique(B$SUBR)
+unique(B$RMO)
+#Se toma diversos miscelaneos
+A = B%>%filter(B$RMO == "030" & B$SUBR == 33 & B$Tipo_endoso != "D" & B$SA>0)
+Mi = B%>%filter(B$RMO == 110 & B$SUBR == 111 & B$Tipo_endoso != "D" & B$SA>0)
+Te = B%>%filter(B$RMO == 110 & B$SUBR == 112 & B$Tipo_endoso != "D" & B$SA>0)
+unique(Mi$MON)
+
+```
+
+```{r}
+#Validación
+length(Vigor$POL[which(!is.na(Vigor$POL))]) 
+length(B$POL)
+```
+\section{Diversos Miscelaneos}
+\subsection{Preparación del modelado}
+En el siguiente código se aplica el tipo de cambio, y se construye la tabla \texttt{P1} con los cuantiles de las sumas aseguradas. 
+```{r}
+for(i in 1:nrow(Mi)){
+  if(Mi$MON[i] == 20){
+    Mi$SA[i] = Mi$SA[i]*18.3147
+  }
+}
+Mi$SA[which(Mi$MON == 20)[4]]
+############
+#Creación de tablas
+decil = seq(from = 0, to = 1, by = 1/10)
+P1 = as.matrix(quantile(probs = decil, x = Mi$SA), nrow  =11, ncol = 1)
+Q = P1
+Q = data.frame(Q)
+Q$categoria = data.frame(categoria = c("1","2","3","4","5","6","7"
+                                       ,"8","9","10","11"))
+Q$porcentaje = rep(.1, times = 11)
+df = Q %>%
+  group_by(categoria) %>%
+  summarise(max(Q),Frecuencia = sum(porcentaje)) 
+Q = cbind(as.numeric(df[1,2]),paste(as.character(as.numeric(df[1,2])),"-", as.character(as.numeric(df[2,2]))))
+for(j in 2:11){
+  P = cbind(as.numeric(df[j,2]),paste(as.character(as.numeric(df[j,2])),"-", as.character(as.numeric(df[j+1,2]))))
+  Q  =rbind(Q,P)
+}
+s = cbind(Q[-11,],df$Frecuencia[-1])
+x = Mi$SA
+x = length(x)
+s1 = as.numeric(s[,3])
+s1 = s1*x
+sum(s1) == x
+s = cbind(s,s1)
+s
+P1
+#Variable más importante con la que se trabajará
+C=Mi
+```
+\subsection{Modelaje de la suma asegurada}
+Sea $Y$ una variable aleatoria la cual se desea modelar. Supongamos que podemos encontrar otra variable aleatoria $X$ tal que casi seguramente $Y \leq X$. Esta propiedad se define como orden estocástico y se dice que $Y$ es estocásticamente menor a $X$ (en símbolos) $Y \leq_{st}X$.
+
+El fundamento primordial de la prueba de Kolmogorov Smirnov es el lema de Glivenko-Cantelli que establece que la función de distribución empírica 
+$$F_n(x) = \frac{1}{n} \sum_{i=1}^{n} \chi_{(-\infty,x]}(x_i),$$
+
+converge uniformemente en probabilidad a la distribución teórica propuesta, donde $\{ x_i \}_{i=1}^{n}$ es una muestra aleatoria de la variable aleatoria $X$
+$$F(x) = \mathbb{P}(X \leq x)$$
+La hipótesis nula es que la distriución teórica de la muestra es algun modelo propuesto por el estadístico y se rechaza siempre que la distancia Kolmogorov Smirnov entre la distribución propuesta y la empírica bajo norma uniforme sea pequeña; es decir:
+$$\lim_{n \rightarrow \infty} D_n = \lim_{n \rightarrow \infty}\sup_x \ |F_n(x) -F(x)| = 0.$$ Esta norma denotada por $D_n$ es el estadístico de Kolmogorov Smirnov y fueron computados métodos de determinación de p-values por Kolmogorov y Smirnov, aunque puede relajarse la hipótesis alternativa a dos colas ($|D_n|>p_{\alpha}$), cola izquierda  ($D_n<p_{\alpha}$) y cola derecha ($D_n>p_{\alpha}$). En este caso como no se pudo ajustar en la prueba de dos colas, se hará uso de la prueba de cola izquierda.
+
+Esta noción viene interrelacionada al concepto de orden estocástico:
+
+\subsubsection{Orden estocástico}
+Para dos variables aleatorias $X$ y  $Y$, $X$ es estocásticamente menor a  $Y$ ($X \leq_{st} Y$ ) si y sólo si $$\bar{F}_{X}(x)=1-F_{X}(x) \leq 1- F_{Y}(x)=\bar{F}_{Y}(x)$$
+Para cada $x \in \mathbb{R}$.
+
+En este caso la definición de prueba Kolmogorov Smirnov  de cola derecha quiere decir que la distribución teórica propuesta, en este caso $t-Student(n-1)$ es estocásticamente menor a la distribución de nuestra suma asegurada transformada. 
+
+Una de las principales ventajas del orden estocástico es que se preserva tambien a modelos de pérdida agregada; esto quiere decir que si pudieramos simular una $t-Student(n-1)$ que es estocásticamente menor a nuestra suma asegurada y sumaramos varias reclamaciones identicamente distribuidas $t-Student(n-1)$, la suma, aleatoria o no sería por ende también estocásticamente menor a la distribución desconocida de nuestra suma asegurada. 
+
+Se empieza con el modelado aplicando orden estocástico, barrido de atípicos y pruebas de cola derecha. Se aplica una transformación tipo Box Cox para realizar el ajuste. Para $M$ la suma asegurada se define:
+$$X = log(M)-6.64,$$
+y se ajustará un modelo $t-Student(m)$ para $X$.
+```{r Análisis de la información, warning=FALSE}
+#Diversos miscelaneos
+set.seed(1234)
+#####inicio
+library(MASS)
+
+#Solo tomamos sumas aseguradas mayores que 0
+C = C%>%filter(SA >0)
+#En la variale M capturamos la suma asegurada
+M = C$SA
+#Se aplica una transformación de Box Cox para suavizar los datos
+#Posteriormente esto puede deshacerse
+M = .5*log(M)-6.2
+#Se calculan los whiscklers del box plot y se quitan outliers
+l =  boxplot.stats(M)$stats
+M= M[M >= l[1] & M <= l[5]]
+#Se calcula por máxima verosimilitud los degree freedom de una t-student
+ajuste = fitdistr(M, densfun = "t")
+ajuste
+#Se guardan los degree freedom en la variable m
+m = ajuste$estimate["df"]
+#Se simulan 135502 corridas de t-student con esos degree freedom's
+set.seed(1234)
+y <- rt(length(M),m)
+#Se comparan nuestros datos con la simulación
+#La hipótesis alternativa es que la función de distribución o de proabilidad 
+#acumulada empírica queda por encima de
+#la distribución t-student con esos grados de libertad y la hipótesis nula 
+#es que nuestros datos se distribuyen igual que la simulación.
+ks.test(M,y, alternative = "less")
+#El qqplot confirma nuestro análisis
+qqplot(M,y)
+plot(ecdf(M),col = "skyblue",lwd = 3)
+points(seq(from = -4, to=15,by=1/1000),ecdf(y)(seq(from = -4, to=15,by=1/1000))
+       ,lwd = 3,type = "s", col = "royalblue")
+qqplot(M,y,col = "skyblue", ylab = "Cuantiles t-student",
+       xlab = "Cuantiles muestrales", main = "Gráfico Q-Q",type = "s",lwd = 10,)
+```
+Aquí m toma el valor
+```{r}
+m
+```
+Claramente en este caso se presenta el hecho de que 
+$$SA \leq_{st} X$$
+Claramente se desconoce la distribución de la suma asegurada; únicamente sabemos que $\texttt{t-Student }\leq F_{n}(x) \leftarrow F_{SA}(x)$. Esto es equivalente a que casi seguramente en probabilidad $SA \leq X$ con $X \sim \texttt{t-Student }$. Por ende al restar el límite máximo de retención $\texttt{t-Student }\geq F_{SA}(x)$. Ahora basta mostrar que $LMR \geq \texttt{t-Student }\geq F_{SA}(x)$ en menos del 5\% de los escenarios únicamente.
+\subsection{Recuperación de la transformación original}
+Al haberse aplicado la transformación 
+$$X = .5*log(M)-6.2$$
+Destransformando, queda:
+$$exp(\frac{M+6.2}{.5}) = M.$$
+\subsection{Prueba de escenarios}
+```{r}
+############
+##Prueba de escenarios
+set.seed(1234)
+longitud = 100000
+z  =rt(longitud,df=m)
+z = (z+6.2)/.5
+z = exp(z)
+LMR = 12000000
+longitud1 = length(z)
+z1 = z-LMR
+length(which(z1>0))/longitud1
+summary(z1)
+```
+Nuevamente y observando que la distribución desconocida de las sumas aseguradas están acotadas casi seguramente por la distribución t destransformada de la forma siguiente, claramente las sumas aseguradas serán menores al límite máximo propuesto.
+```{r}
+l =  boxplot.stats(z)$stats
+z2= z[ z <= quantile(prob = .95,z)]
+H = data.frame(asegurado=c(1:length(z2)), reclamacion = z2)
+cutoff =12000000
+ggplot(H, aes(x = asegurado, y = reclamacion, size = reclamacion)) +
+  geom_point(color = "steelblue", alpha = 0.7) + 
+  geom_hline(aes(yintercept = cutoff, color  = "$ 12,000,000"), linetype = "dashed", size = 1)+
+  scale_color_manual(values = c("$ 12,000,000" = "red")) +
+  labs(color = "Referencia") +
+  labs(title = "Tamaño de Reclamación por Asegurado",
+       x = "Asegurado",
+       y = "Monto de Reclamación",
+       size = "Reclamación") +
+  theme_minimal()
+```
+
+\subsection{Comparación grafica del modelo}
+En lo que sigue se realiza un análisis comparativo con tres modelos represantivos y se descartan los mismos pues sus p-values son inaceptables ya que de los mismos se rechaza la hipótesis de las distribuciones.
+
+Lognormal, normal y gamma son los modelos probados, dos distribuciones sesgadas tipo colas pesadas, mesocurtica y leptocurtica.
+Se analiza la bondad de ajuste
+```{r}
+e = fitdistr(Mi$SA,"lognormal")
+x1 = e$estimate[1]
+w1= e$estimate[2]
+y1 = rlnorm(length(Mi$SA),x1,w1)
+k = ks.test(y1,Mi$SA)
+# Diversos Misceláneos
+set.seed(1234)
+e = fitdistr(Mi$SA,"normal")
+x2 = e$estimate[1]
+w2= e$estimate[2]
+y2 = rnorm(length(Mi$SA),x2,w2)
+k1 = ks.test(y2,Mi$SA)
+
+set.seed(1234)
+y3 = rgamma(length(Mi$SA),rate = 1/(var(Mi$SA)/mean(Mi$SA)),shape = (mean(Mi$SA))^2/var(Mi$SA))
+k2 = ks.test(y3,Mi$SA)
+
+c(k$statistic,k$p.value)
+c(k1$statistic,k1$p.value)
+c(k2$statistic,k2$p.value)
+```
+
+```{r}
+#Cramer Von Mises
+library(goftest)
+# Diversos Misceláneos
+cv = cvm.test(Mi$SA,  null = "plnorm",  meanlog = x1,  sdlog = w1)
+cv
+
+# Diversos Misceláneos
+cv1 = cvm.test(Mi$SA,  null = "norm",  mean = x2,  sd = w2)
+cv1
+# Diversos Misceláneos
+cv2 = cvm.test(Mi$SA,  null = "gamma",  rate = 1/(var(Mi$SA)/mean(Mi$SA)),shape = (mean(Mi$SA))^2/var(Mi$SA))
+cv2
+c(cv$statistic,cv$p.value)
+c(cv1$statistic,cv1$p.value)
+c(cv2$statistic,cv2$p.value)
+```
+
+
+```{r}
+############Anderson Darling
+#Accidentes personales
+ad = ad.test(Mi$SA, "plnorm",  meanlog = mean(Mi$SA),  sdlog = sd(Mi$SA))
+
+#Accidentes personales
+ad1 = ad.test(Mi$SA, "norm",  mean = mean(Mi$SA),  sd = sd(Mi$SA))
+
+#Accidentes personales
+ad2 = ad.test(Mi$SA, "gamma",  rate = 1/(var(Mi$SA)/mean(Mi$SA)),shape = (mean(Mi$SA))^2/var(Mi$SA))
+
+c(ad$statistic,ad$p.value)
+c(ad1$statistic,ad1$p.value)
+c(ad2$statistic,ad2$p.value)
+
+t(t(summary(Mi$SA)))
+Mi[which(Mi$SA == max(Mi$SA)),]$POL
+```
+
+
+```{r}
+###Graficos
+##1
+B_1 = ecdf(Mi$SA)(seq(from=0, to=4500000, 4000))
+B_2 = ecdf(y1)(seq(from=0, to=4500000, 4000))
+C_2 = ecdf(y2)(seq(from=0, to=4500000, 4000))
+D_2 = ecdf(y3)(seq(from=0, to=4500000, 4000))
+# Crear data frames para cada comparación
+pp_AB <- qq_data(B_1, B_2, "SA vs lognormal")
+pp_AC <- qq_data(B_1, C_2, "SA vs normal")
+pp_AD <- qq_data(B_1, D_2, "SA vs gamma")
+
+# Unir todos los datos
+pp_all <- bind_rows(pp_AB, pp_AC, pp_AD)
+
+# Graficar con ggplot2
+pp <- ggplot(pp_all, aes(x = x, y = y, color = grupo)) +
+  geom_point() + geom_step() + coord_cartesian(ylim = c(0, 1)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "solid") +
+labs(title = "PP-Plot", x = "Probailidades de SA", y = "Probabilidades teóricas") +
+  theme_minimal()
+
+```
+Ahora se comparan las frecuencias y distribuciones empíricas para observar como a pesar de existir un cierto parecido las pruebas indican rechazar las hipótesis de igualdad de distribución.
+```{r}
+
+####2
+par(mfrow = c(1,2))
+plot(ecdf(Mi$SA), main = "CDF empírica y teórica")
+lines(ecdf(y1), col = "turquoise")
+lines(ecdf(y2), col = "orange")
+lines(ecdf(y3), col = "blue")
+z = Mi$SA
+l1 =  boxplot.stats(z)$stats
+z= z[z >= l1[1] & z <= l1[5]]
+hist(z,freq = FALSE,main = "Histograma y densidades teóricas")
+d = seq(from = 0, to = max(z), by =1)
+lines(d, dlnorm(d,x1,w1), col = "turquoise")
+lines(d, dnorm(d,x2,w2), col = "orange")
+lines(d, dgamma(d,rate = 1/(var(Mi$SA)/mean(Mi$SA)),shape = (mean(Mi$SA))^2/var(Mi$SA)), col = "blue")
+
+A_1 = Mi$SA
+B = y1
+C = y2
+D = y3
+# Crear data frames para cada comparación
+qq_AB <- qq_data(A_1, B, "SA vs lognormal")
+qq_AC <- qq_data(A_1, C, "SA vs normal")
+qq_AD <- qq_data(A_1, D, "SA vs gamma")
+
+# Unir todos los datos
+qq_all <- bind_rows(qq_AB, qq_AC, qq_AD)
+
+# Graficar con ggplot2
+p <- ggplot(qq_all, aes(x = x, y = y, color = grupo)) +
+  geom_point() + geom_step() + coord_cartesian(ylim = c(0, 4500000)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "solid") +
+  labs(title = "QQ-Plot", x = "Cuantiles de SA", y = "Cuantiles teóricos") +
+  theme_minimal()
+par(mfrow = c(1,1))
+library(gridExtra)
+grid.arrange(p, pp, ncol = 2)
+```
+
+
+\subsection{Prueba de estrés}
+La simulación adquiere las siguientes características
+\subsection{Análisis de sensibilidad}
+```{r}
+#Sensibilidad
+prueba = function(i,LMR,k){
+  k = (1+i)*k
+  z1 = k-LMR
+  f = length(which(z1>0))/length(z1)
+  return(f)
+}
+library(ggplot2)
+max(z)
+LMR = 12000000
+d2 = seq ( from = 0, to = 6, by = 1/ 100)
+escenarios = sapply (d2 , prueba , LMR = LMR, k=z )
+# Datos de ejemplo
+sensibilidad <- data.frame(
+  incremento = d2,
+  porcentaje = escenarios,
+  categoria = c(1:length(escenarios))
+)
+# Scatter plot
+ggplot(sensibilidad, aes(x = incremento, y = porcentaje, color = categoria)) +
+  geom_point(size = 3) +
+  labs(title = "Escenarios") +
+  theme_minimal()+theme(legend.position = "none") +
+  geom_hline(yintercept = .05, color = "gold", linetype = "solid", size = 1)
+
+```
+
+\section{Diversos Técnicos}
+\subsection{Preparación del modelado}
+En el siguiente código se aplica el tipo de cambio, y se construye la tabla \texttt{P1} con los cuantiles de las sumas aseguradas. 
+
+Se ocupa el inciso 1 de la metodología basada en el algoritmo de simulación estocástica \textbf{Aceptación y Rechazo}
+
+Las cuentas en dolares se convierten en dólares.
+```{r Tipo de cambio, include=FALSE}
+unique(Te$MON)
+Prueb = Te$SA[which(Te$MON == 20)[4]]
+for(i in 1:nrow(Te)){
+  if(Te$MON[i] == 20){
+    Te$SA[i] = Te$SA[i]*18.3147
+  }
+}
+```
+Se puede ver la estructura de los datos con los cuantiles. Los cuantiles permiten observar los datos a modelar ordenados y mostrando las  frecuencias.
+```{r Tablas cuantiles de técnicos}
+decil = seq(from = 0, to = 1, by = 1/10)
+P1 = as.matrix(quantile(probs = decil, x = Te$SA), nrow  =11, ncol = 1)
+Q = P1
+Q = data.frame(Q)
+Q$categoria = data.frame(categoria = c("1","2","3","4","5","6","7","8","9","10","11"))
+Q$porcentaje = rep(.1, times = 11)
+df = Q %>%
+  group_by(categoria) %>%
+  summarise(max(Q),Frecuencia = sum(porcentaje)) 
+Q = cbind(as.numeric(df[1,2]),paste(as.character(as.numeric(df[1,2])),"-", as.character(as.numeric(df[2,2]))))
+for(j in 2:11){
+  P = cbind(as.numeric(df[j,2]),paste(as.character(as.numeric(df[j,2])),"-", as.character(as.numeric(df[j+1,2]))))
+  Q  =rbind(Q,P)
+}
+s = cbind(Q[-11,],df$Frecuencia[-1])
+x = Te$SA
+x = length(x)
+s1 = as.numeric(s[,3])
+s1 = s1*x
+sum(s1) == x
+s = cbind(s,s1)
+s
+P1
+```
+Se actualiza la base para diversos técnicos.
+```{r include=FALSE}
+C=Te
+```
+
+\subsubsection{Ajuste de los datos}
+Dentro de la metodología se expondrá el inciso 2, \textbf{Aceptación y Rechazo}.
+```{r}
+#Diversos tecnicos
+#####inicio
+library(MASS)
+#Solo tomamos sumas aseguradas mayores que 0
+C = C%>%filter(SA >0)
+#En la variale M capturamos la suma asegurada
+M = C$SA
+#Se aplica una transformación Box Plot
+M = log(M)-6.461
+#Limpieza de outliers vía Box Plot
+l =  boxplot.stats(M)$stats
+M= M[M >= l[1] & M <= l[5]]
+```
+\subsection{Ajuste estimador kernel}
+El kernel es el núcleo y consiste en una distribución con el mismo soporte que la distriución a modelar.
+
+Primeramente se sabe por el teorema de lema de Glivenko-Cantelli que establece que la función de distribución empírica 
+$$F_n(x) = \frac{1}{n} \sum_{i=1}^{n} \chi_{(-\infty,x]}(x_i),$$
+
+converge uniformemente en probabilidad a la distribución teórica propuesta, donde $\{ x_i \}_{i=1}^{n}$ es una muestra aleatoria de la variable aleatoria $X$
+$$F(x) = \mathbb{P}(X \leq x)$$
+
+A pesar de ser una técnica usada ampliamente en las aplicaciones, tiene la limitante de que la distribución empírica no necesariamente es absolutamente continua, es decir, puede no tener función de densidad.
+
+El método de aproximación Kernel pretende dada una muestra aleatoria $\{x_i\}_{i=1}^{n}$, definir una función $\hat{f}_{d}(x)$ que satisface ser la densidad de $$\hat{F}_n(x)= \int_{(-\infty,x)}Kernel(\frac{x-x_i}{h})dF_n(x)$$
+
+Al ser esta una convolución puede calcularse $\int f*g = \int f \ \int g = \int f$ si g es función de densidad; en este caso si el kernel se escoge como una densidad digamos normal estandar, entonces esto se satisfacera y utilizando la media muestral entonces podrá estimarse la densidad buscada.
+```{r Estimador Kernel}
+set.seed(1234)
+#Kernel normal
+ cociente = function(x,h,M){
+   return((x-M)/h)
+ }
+ kernel1= function(x,h,M){
+   sumando = sum(dnorm(cociente(x,h,M),mean = 0, sd=1))
+   return(sumando/(length(M)*h))
+ }
+ #La constante de escalamiento
+ h = bw.nrd0(M)
+```
+\subsection{Ajuste para encontrar función acotadora}
+Se define un cierto dominio para verificar que el Kernel usado es función de densidad. Se observa por inspección que la distribución Cauchy multiplicada por cierta constante acota por arriba a la densidad objetivo estimada con el método Kernel. Se usa la regla de Silverman (h) para seleccionar el \textbf{Bandwidth}.
+```{r Ajuste función acotadora}
+#Límites del eje x
+a=min(M)
+b=max(M)
+dominio = seq(from = a, to = b, length.out= 1000)
+#Densidad suavizada objetivo a modelar
+#Aplicar el kernel al dominio
+ya = sapply(dominio, FUN = kernel1,h=h,M=M)
+#Densidad que acota por arriba a la densidad objetivo
+#Aplicar densidad Cauchy al dominio
+ye = sapply(dominio, FUN = dcauchy,location = 6, scale =5.9)
+ye = 9*ye
+```
+Se verifica que es una función de densidad
+```{r Integral normal}
+sum(ya)*diff(dominio)[1]
+```
+Ahora se observa la aplicación del método de la función inversa conforme al inciso 2 de la metodología:
+```{r}
+#curve(dlnorm(x,m,m1))
+plot(ya, ylim=c(0,1), col="purple")
+lines(ye,lwd = 3,type = "s", col = "purple4")
+```
+\subsection{Aplicación método de la función inversa}
+En aplicación del método de la función inversa pueden prepararse las variables insumo.
+```{r Preparación de los datos}
+M = C$SA
+M = log(M)-6.461
+l =  boxplot.stats(M)$stats
+M= M[M >= l[1] & M <= l[5]]
+h = bw.nrd0(M)
+ter = h*length(M)
+```
+
+Definimos la función de densidad objetivo a modelar.
+```{r}
+Objetivo = function(x,M1){
+cociente  =(x-M1)/h
+  sumando = sum(dnorm(cociente,mean = 0, sd=1))
+   return(sumando/(length(M1)*h))
+}
+```
+Se definen los parametros para observar gráficamente el comportamiento.
+```{r Comportamiento gráfico}
+a = min(M)
+b=max(M)
+xzs = seq(from =a, to  =b, length.out = 100000)
+kwe =seq(from =1, to  =length(M), length.out = 2000)
+M1 = M[kwe]
+zwsa  =sapply(xzs, Objetivo, M1)
+plot(xzs,zwsa,ylim = c(0,1), col = "purple4")
+```
+Se generan números pseudoaleatorios Cauchy.
+```{r Generación Cauchy}
+set.seed(1234)
+longitud = 100000
+u =c(1:longitud)
+c = rcauchy(longitud,location = 6, scale =5.9)
+c = c[c>0]
+SA = list()
+```
+Una vez generados estos números pseudoaleatorios, se generan vectores con valuaciones $U \sim unif(0,9 \cdot f_{cauchy}(X))$, aquí $X \sim Cauchy$.
+
+```{r warning=FALSE}
+for(i in 1:longitud){
+cota = dcauchy(c[i],location = 6, scale =5.9)
+cota = 9*cota
+u[i] = runif(1, 0, cota)
+}
+```
+Ahora se generaran las corridas de la función objetivo $\hat{f}_{d}(X)$
+```{r}
+simulac = list()
+M = C$SA
+M = log(M)-6.461
+l =  boxplot.stats(M)$stats
+M= M[M >= l[1] & M <= l[5]]
+h = bw.nrd0(M)
+```
+
+Se generan las mallas de valores para valuar el Kernel.
+```{r}
+kwe =seq(from =1, to  =length(M), length.out = 2000)
+M1 = M[kwe]
+ter = h*length(M)
+```
+
+Se generan las valuaciones $\hat{f}_{d}(X) = E[Kernel(\frac{X-M}{h})]$.
+```{r}
+for(i in 1:length(c)){
+cociente = (c[i]-M1)/h
+sumando  = sum(dnorm(cociente,mean = 0, sd=1))
+simulac[[i]] = sumando/ter
+}
+simulac = unlist(simulac)
+```
+
+Se aplica el algoritmo de la función inversa.
+```{r Método de la función inversa}
+for(i in 1:length(c)){
+  if(u[i] <= simulac[i]){
+    SA[[i]] =  c[i]
+  }
+}
+SA = unlist(SA)
+```
+
+Se deshacen las transformaciones $log(M)-6.461$ y se valida con bondad de ajuste. 
+```{r Primera validación}
+Fer= C$SA
+l =  boxplot.stats(Fer)$stats
+Fer= Fer[Fer >= l[1] & Fer <= l[5]]
+z = exp(SA + 6.461)
+ks.test(z,Fer)
+```
+Se valida ahora con datos transformados:
+```{r Segunda validación}
+ks.test(M,SA)
+```
+Se observa el gráfico cuantil-cuantil
+```{r}
+qqplot(z,Fer, col = "purple", type = "s")
+```
+Observemos la estructura de la simulación
+```{r}
+decil = seq(from = 0, to = 1, by = 1/10)
+P11 = as.matrix(quantile(probs = decil, x = z), nrow  =11, ncol = 1)
+Q11 = P11
+Q11 = data.frame(Q11)
+```
+
+```{r}
+P1
+P11
+```
+En gráficos
+```{r}
+plot(ecdf(Te$SA), main = "CDF empírica y teórica", xlim  =c(0,686922.536))
+lines(ecdf(z), col = "purple")
+```
+
+\subsection{Prueba de escenarios}
+```{r}
+############
+##Prueba de escenarios
+LMR = 12000000
+longitud1 = length(z)
+z1 = z-LMR
+length(which(z1>0))/longitud1
+summary(z1)
+
+```
+\subsubsection{Modelando frecuencia siniestral}
+En el archivo anexo al presente trabajo puede obtenerse la frecuencia siniestral en el ejercicio 2025:
+Como insumo 
+```{r librerias, warning=FALSE}
+library("readr")
+library("stats")
+library("tseries")
+library("nortest")
+library("FinTS")
+library("ZINARp")
+
+serie_tiempo <- read_csv("C:/Users/agarciadeleon/R_Studio/Proyectos_R/TS/serie_tiempo.csv")
+serie = ts(serie_tiempo$S, start=c(2022, 1),end = c(2025, 9),  frequency=12)
+```
+Como insumo 
+```{r}
+library("readr")
+library("stats")
+library("tseries")
+library("nortest")
+library("FinTS")
+library("ZINARp")
+
+serie_tiempo <- read_csv("C:/Users/agarciadeleon/R_Studio/Proyectos_R/TS/serie_tiempo.csv")
+serie = ts(serie_tiempo$S, start=c(2022, 1),end = c(2025, 9),  frequency=12)
+```
+\subsection{Enfoque Zinar(p)}
+Se usará la técnica series de tiempo generalizadas usando distribución de parte media móvil 
+$$X_t - \sum_{i=1}^{p} \alpha_{i} X_{t-i} \sim Poisson(\lambda)$$ 
+
+Usando optimización Bayesiana pueden estimarse los parámetros del modelo asumiendo verosimilitud poisson; En nuestro caso probamos con el orden $p$ desde 1 hasta 4 donde se consideró se tuvo un excelente ajuste.
+```{r}
+set.seed(1234)
+serie
+x = serie
+p=4
+m = estimate_zinarp(
+x,
+p,
+iter = 5000,
+thin = 2,
+burn = 0.1,
+innovation = "Poisson"
+)
+```
+Se guardaron los parámetros del modelo
+```{r}
+a1 = mean(m$alpha[,1])
+a2 = mean(m$alpha[,2])
+a3 = mean(m$alpha[,3])
+a4 = mean(m$alpha[,4])
+lambda = mean(m$lambda)
+```
+Se contrastó con la serie original
+```{r}
+set.seed(1234)
+serie1 = serie[-length(serie)]
+serie2 = serie[-c(length(serie),(length(serie)-1))]
+serie3 = serie[-c(length(serie),(length(serie)-1),(length(serie)-2))]
+serie4 = serie[-c(length(serie),(length(serie)-1),(length(serie)-2),length(serie)-3)]
+poi = rpois(length(serie1),lambda = lambda)
+Proceso = a1*serie1 +a2*serie2 + a3*serie3+a4*serie4 +poi
+ks.test(Proceso,serie)
+```
+Dando un valor de excelente ajuste.
+\subsection{Enfoque Proyectivo}
+Este enfoque no depende de supuestos probabilísticos; en álgebra lineal una proyección ortogonal es una transformación idempotente, y tal que es normal, es decir en el caso real, conmuta con su adjunto $T\circ T^{*} = T^{*}\circ T$. Adicionalmente, en este caso, el adjunto es la proyección sobre el complemento ortogonal y el vector proyección es el que satisface que la distancia de este a el complemento ortogonal respectivo es mínima. Esto se traduce en que si la distancia es el error cuadrático medio, entonces este se minimizará para el caso del estimador pronóstico. Se usa este enfoque para no depender de un ajuste paramétrico particular sino de la proyección de la historia entera hacia el futuro. Se puede observar que el pronóstico es con aproximadamente 45  periodos de historia, es decir el pronóstico depende de 45 parámetros. Afortunadamente el modelo expresado arriba  solo depende de 5 lo cual como se verá más adelante, aunado a que ambos satisfacen bondad de ajuste, hace que sea más facil de manejar en términos predictivos.
+```{r}
+#############Ajuste por mínimos cuadrados
+autocov <- function(x, k){
+  n <- length(x)
+  if(k == n){
+    k = 0
+  }
+  x_bar <- mean(x)
+  sum((x[(k+1):n] - x_bar) * (x[1:(n-k)] - x_bar)) / n
+}
+autocor <- function(x, k){
+  autocov(x,k)/autocov(x,0)
+}
+
+##SIGMA
+tamano = length(serie)
+seriek = serie[1:tamano]
+A = matrix(nrow = tamano, ncol  =tamano)
+for(i in 1:nrow(A)){
+  for(j in 1:ncol(A)){
+    if(j>i){
+    A[i,j] = autocor(seriek,j-i)}else{
+      A[i,j] = autocor(seriek,i-j)
+    }
+  }
+}
+tam  =12
+b = matrix(rep(0, times = tamano*tam), ncol = tam)
+#tendencia  =rep(0, times = h)
+for(h in 1:tam){
+#b = gamma(n-s-k) k:1:n
+#s horizonte prospectivo
+for(b1 in 1:tamano){
+b[b1,h] = autocor(seriek,tamano + h - b1)
+}
+tendencia = solve(A)%*%b[,h]
+tendencia = sum(tendencia)
+seriek = c(seriek,tendencia)
+}
+
+#Validación
+length(seriek)
+length(serie)
+plot(serie, col = "darkblue", lty = 1, lwd = 3, ylab = "Número incidencias tecnológicas", xlab = "Tiempo en meses", legend = NULL, main="Serie Original y Predicciones", xlim = c(2025,2027))
+lines(ts(seriek[46:57],start = c(2025,10),frequency = 12), col = "darkred", lty = 1, lwd = 2)
+segments(2026-4/12, serie[length(serie)], 2026-3/12, ts(seriek[46],start = c(2025,10),frequency = 12),col = "darkred", lty = 1, lwd = 2)
+
+
+```
+
+
+```{r}
+ks.test(Proceso,seriek)
+```
+
+Nuevamente ambos presentan excelente ajuste, enfoque proyectivo y enfoque paramétrico.
+```{r}
+############
+z1 = z -LMR
+length(which(z1>0))/longitud1
+summary(z1)
+```
+\subsection{Análisis de sensibilidad}
+```{r}
+#Sensibilidad
+prueba = function(i,LMR,k){
+  k = (1+i)*k
+  z1 = k-LMR
+  f = length(which(z1>0))/length(z1)
+  return(f)
+}
+library(ggplot2)
+LMR = 12000000
+d2 = seq ( from = 0, to = 150, by = 1/ 100)
+escenarios = sapply (d2 , prueba , LMR = LMR, k=z )
+# Datos de ejemplo
+sensibilidad <- data.frame(
+  incremento = d2,
+  porcentaje = escenarios,
+  categoria = c(1:length(escenarios))
+)
+# Scatter plot
+ggplot(sensibilidad, aes(x = incremento, y = porcentaje, color = categoria)) +
+  geom_point(size = 3) +
+  labs(title = "Escenarios") +
+  theme_minimal()+theme(legend.position = "none") +
+  geom_hline(yintercept = .05, color = "gold", linetype = "solid", size = 1)
+```
+
+\subsubsection{Análisis usando Modelo individual de riesgo}
+```{r}
+######
+set.seed(12335)
+tam = 150000
+D = sample(x = c(1,0),size = tam, prob = c(.20,.80), replace = TRUE)
+C = z
+P = D*C
+Acum = cumsum(P)
+Acum[length(Acum)]
+P = P[which(P!=0)]
+tam = length(P)
+P = data.frame(asegurado  =c(1:tam), reclamacion = P)
+
+
+ggplot(P, aes(x = asegurado, y = reclamacion, size = reclamacion)) +
+  geom_point(color = "steelblue", alpha = 0.7) +
+  labs(title = "Tamaño de Reclamación por Asegurado",
+       x = "Asegurado",
+       y = "Monto de Reclamación",
+       size = "Reclamación") +
+  theme_minimal()
+summary(P$reclamacion)
+```
+
+
+```{r}
+decil = seq(from = 0, to = 1, by = 1/10)
+P3 = as.matrix(quantile(probs = decil, x =P$reclamacion), nrow  =11, ncol = 1)
+P3
+sum(P$reclamacion)
+```
+
+```{r warning=FALSE}
+f = function(tam){
+  D = sample(x = c(1,0),size = tam, prob = c(.20,.80), replace = TRUE)
+  C = z
+  y = C*D
+  y = cumsum(y)
+  return(y)
+}
+
+set.seed(12335)
+tam = 150000
+y = f(150000)[c(120000:150000)]
+plot(c(120000:150000), y, ylab = "Evolución del portafolio", xlab = "Número de asegurados" )
+lines(c(120000:150000),y, type = "b", pch = 10, col = "skyblue", lwd = 1)
+for(i in 1:20){
+  y = f(150000)[c(120000:150000)]
+  lines(c(120000:150000), y, type = "b", pch = 10, col = i, lwd = 1)
+}
+```
