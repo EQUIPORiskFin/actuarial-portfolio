@@ -1,0 +1,155 @@
+---
+title: "Altman Score"
+author: "Alejandro García de León"
+date: "2025-12-27"
+output: pdf_document
+---
+\section{Modelo matemático}
+Una transformación lineal que es idempotente, es decir $T \circ T = T$ y normal es decir $T \circ T^{*} = T^{*} \circ T$ (conmuta con su operador adjunto) es una proyección ortogonal y el rango es el complemento ortogonal del dominio, es decir el conjunto de todos aquellos elementos cuyo producto interior con los elementos del dominio es 0 o bien el Kernel del producto interior en una coordenada. Ahora bien $Id -T$ es la otra proyección y sumadas dan la identidad. Entonces el vector proyección es el mas cercano al proyectado en la distancia inducida por el producto interior. Cuando estamos en espacios de Lebesgue $L^{2}(P)$ esta norma tiene un producto interior y su proyección viene dada por los coeficientes por mínimos cuadrados. Ahora bien puede aplicarse esa proyección a una n-eada y eso generaría un modelo de regresión lineal. Esa proyección es $\hat{y} = \beta \vec{x}$; si quisieramos explicar un vector $y$ en terminos de otros $\vec{x} = (x_1, \ldots, x_{m})$ cada uno conn coordenadas se calcula $N = \int (y-\hat{y})^2$ y se escoje la proyección $\beta$ como la que minimiza $N$. Este es el razonamiento dentro del análisis Z-Altman.
+
+\subsection{Base utilizada}
+```{r}
+library(readr)
+clientes_aseguradora_sintetico <- read_csv("C:/Users/Alejandro/Downloads/WPy64-38123/notebooks/clientes_aseguradora_sintetico.csv")
+```
+
+```{r}
+head(clientes_aseguradora_sintetico,7)
+```
+La base fue realizada con datos simulados para ejemplificar las técnicas de análisis multivariado aquí abordadas.
+\subsection{Modelo matemático}
+A continuación se usa la notación $<;>$ para denotar un producto interior.
+
+Dentro de la regresión lineal tenemos la matriz sombrerro $H$, esta es tal que $HY = \beta \cdot X =  \hat{Y}$. 
+
+Esto se obtiene de calcular la derivada parcial del error cuadrático medio 
+$$\frac{\partial ECM}{\partial \beta} = \frac{\partial }{\partial \beta}(Y-X\beta)^{t}(Y-X \beta) = -2 X^{t} (Y-X \beta)$$
+Igualando a 0 y depejando llegamos a que $X^{t} X \beta = X^{t}Y$ es decir $\beta =( X^{t}X)^{-1}X^{t}Y$; ya que $HY = \hat{Y} =  X \beta$ entonces $H = X (X^{t} X)^{-1}X^{t}$. 
+
+Por tanto sabemos que para resolver mínimos cuadrados hay que resolver $Cov(X) \vec{\beta} = X^tX \vec{\beta} = X^{t}Y$ (ecuaciones Yule-Walker), donde el lado derecho es el vector formado por la covarianza de Y y el último elemento del vector X en primer lugar, hasta llegar al primero de X. $\beta_0 = (1-\sum \beta_i) \mu$.
+
+$H$ es la proyección ortogonal sobre el espacio generado por las columnas de la matriz $X$. Entonces $HY \in Span(X)^{\perp}$ y por ende $<Y-HY; X> =0$ de tal suerte que $<Y;X>-<HY;X> =0$ es decir $X^{t}Y=<Y;X> = <HY;X> = X^t HY$ para cada $Y \in Span(X)$. Por ende nuevamente para que esto sea verdad es necesario que $H = X (X^{t}X)^{-1}X^{t}$.
+
+Ahora tomando las covarianzas $T = X^{t} HX = X^{t}X$, estas pueden descomponerse de la forma $T = W+B$, donde W es una matriz que representa las covarianzas de elementos de un mismo grupo mientras que B las de grupos distintos. Si se pide la máxima homogeneidad posible es decir $a^{t} \ W \ a  =1$ donde $a$ es la proyección buscada, entonces se llega a que $a^{t} \ T \ a = 1 + a^{t} \ B \ a$. 
+
+Se puede definir el lagrangiano:
+
+$$L(a,\lambda) = a^{t} \ B \ a - \lambda(a^{t} \ W \ a-1)$$
+Derivando queda $2Ba-\lambda(2Wa)=0$ implicando que  $Ba = \lambda Wa$; de aquí $Ba=\lambda(Wa) \Leftrightarrow W^{-1}Ba = \lambda a$ esto implica que $a$ es un eigenvector de $W^{-1}B$ que  optimiza el cociente  
+$$\frac{a^{t}Ba}{a^{t}Wa}$$
+y que satisface la restricción.
+
+\section{Aplicación del análisis anterior a un caso real de selección de cartera de una aseguradora}
+
+En matemáticas dado un vector de observaciones $Y$ que en este caso se interpreta como un vector multidimensional que contiene las siguientes variables de un cliente escogido al azar de una aseguradora llamada \textbf{Aseguradora A} se interpreta como una selección aleatoria puede aplicarse una función $$f:R^{n} \longrightarrow R$$
+a cada cliente para medir cierto grado de alguna cualidad tomando en cuenta:
+```{r}
+colnames(clientes_aseguradora_sintetico )
+```
+En nuestro caso quisieramos medir que tan bueno es un cliente de nuestra cartera para ubicarlo con mayor o menor probabilidad de incumplimiento.
+
+La función distancia a utilizar será el error cuadrático medio.
+
+Como medida para un cliente bueno, se tomará la distancia a elementos mas parecidos con las siguientes escalas:
+
+Se dice que un cliente es 
+```{r}
+#4 grupos
+#solo 6 variables
+#edad
+#ocupacion_seguridad
+#rango_salarial
+#(Inversamente proporcional)
+#calificacion_crediticia
+#endeudamiento_ingreso
+#tier_cumplimiento
+X = clientes_aseguradora_sintetico
+
+X = X[,c(3:6,8:9)]
+X = as.matrix(X)
+#bueno
+c_1 = c(35, 5,80000,1,0,0)
+#segundo mejor
+c_2 = c(40, 4,30000,2,.3,1)
+#tercer mejor
+c_3 = c(50, 3,10000,3,.7,2)
+#malo
+c_4 = c(60, 2,8000,4,.8,3)
+#Calcular la media de cada variable
+s = c(1:ncol(X))
+for(i in 1:ncol(X)){
+s[i] = mean(X[,i])
+}
+#edad
+#ocupacion_seguridad
+#rango_salarial
+#(Inversamente proporcional)
+#calificacion_crediticia
+#endeudamiento_ingreso
+#tier_cumplimiento
+```
+
+Se construye el error cuadrático medio respecto de estos cuatro grupos
+
+```{r}
+n = nrow(X)
+r1 = t(t(c_1-s))%*%t(c_1-s)
+r1 = n*r1
+r2 = t(t(c_2-s))%*%t(c_2-s)
+r2 = n*r2
+r3 = t(t(c_3-s))%*%t(c_3-s)
+r3 = n*r3
+r4 = t(t(c_4-s))%*%t(c_4-s)
+r4 = n*r4
+B = r1 + r2 + r3 + r4
+B
+```
+Estas son las sumas de cuadrados de grupos exteriores.
+
+Las de grupos interiores serán la covarianza entre columnas
+
+```{r}
+W = cov(X)
+```
+La idea del análisis discriminante de Fisher es la siguiente: Resolver el problema lineal
+
+$$max(a^{t} \ B \ a)$$ s.a a la restricción
+$$a^{t} \ W \ a = 1$$
+La solución al mismo esta dada por a igual a eigenvector de $W^{-1} B$ que correspomde al eigenvalor más grande de esta matriz.
+
+Calculamos los eigenvectores
+
+```{r}
+x = solve(W)
+x = x%*%B
+valores = eigen(x)[[1]]
+valores
+```
+Como son reales estos eigenvalores nos quedamos solo con la parte real:
+```{r}
+valores = Re(valores)
+valores
+```
+el más grande es 
+```{r}
+max(valores)
+```
+Cuyo eigenvector correspondiente es
+```{r}
+eigenvectores = eigen(x)[[2]]
+eigenvectores = eigenvectores[,1]
+eigenvectores  =Re(eigenvectores)
+eigenvectores
+```
+Esta es la proyección buscada. Para aplicar esta regla se resta al cliente que se desee clasificar el valor representativo de cada grupo y se le aplica la función. El que sea más pequeño será el grupo que pertenecerá este cliente.
+
+\section{Ejemplificación de lo anterior}
+Suponiendo llega un cliente con las siguientes características: 70 años, buena ocupación de grado 5, un salario de \$50,000, endeudado al 50\% y que nunca ha incumplido sus créditos previos (tier 0). 
+```{r}
+h = c(70, 5,50000,1,.5,0)
+abs(sum(eigenvectores*(c_1-h)))
+abs(sum(eigenvectores*(c_2-h)))
+abs(sum(eigenvectores*(c_3-h)))
+abs(sum(eigenvectores*(c_4-h)))
+```
+Entonces el segundo grupo es aquel al que pertenece este cliente, es decir es un cliente de segundo nivel.
