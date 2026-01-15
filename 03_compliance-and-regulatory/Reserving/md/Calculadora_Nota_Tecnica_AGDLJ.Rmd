@@ -1,0 +1,659 @@
+---
+title: "Calculadora_Nota_Tecnica_AGDLJ"
+author: "Alejandro García de León"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+\begin{abstract}
+El presente trabajo es una calculadora elaborada como anexo a la nota técnica de valuación de la reserva de siniestros ocurridos pero no reportados. Trabajo original presentado por Alejandro García de León.
+\end{abstract}
+\tableofcontents
+\section{Introducción}
+Parte esencial de la presente calculadora es garantizar trazabilidad a la metodología propuesta; este trabajo se compone de dos partes. Uno esta destinado a calcular el mejor estimador de la reserva de siniestros ocurridos pero no reportados. 
+
+Posteriormente se desarrolla la segunda parte calculando el margen de riesgo para un requerimiento de capital de solvencia hipotético.
+
+\subsection{Insumos requeridos}
+\texttt{Se requiere información siniestral que contenga monto, año, gastos de ajuste, recuperaciones y salvamentos}. \texttt{Se requiere información sobre las primas que contenga por lo menos prima emitida, cedida, año de inicio de vigencia, duración de la póliza, duración remanente}. Adicionalmente es requerida la tasa libre de riesgo para las duraciones financieras del margen de riesgo.
+
+\section{Preparación de los datos}
+```{r}
+library(arrow)
+#Se importa la base insumo
+library(readr)
+RR3_FICTICIO <- read_csv("C:/Users/agarciadeleon/R_Studio/Scripts/Carp1/RR3_FICTICIO_Def.csv")
+#Separar anuales de multianuales.
+for(i in 1:nrow(RR3_FICTICIO)){
+  if(RR3_FICTICIO[i,9]>365){
+    RR3_FICTICIO$Tipo = "multi"
+  }else{RR3_FICTICIO$Tipo = "anual"}
+}
+```
+```{r}
+length(which(RR3_FICTICIO$Tipo == "multi"))
+```
+Todas son multianuales, entonces se utilizarán las primas devengadas, no emitidas.
+\subsection{Prima de tarifa devengada}
+```{r warning=FALSE}
+library(dplyr)
+l = list()
+productos = unique(RR3_FICTICIO$Ramo)
+for(k in 1:length(productos)){
+  x = RR3_FICTICIO%>%filter(RR3_FICTICIO$Ramo==productos[[k]])
+  l[[k]] = x%>%
+  group_by(`AÃ±o`) %>%
+  summarise(Prima_devengada = sum(PrimaDevengadaBEL),Prima_Retenida = sum(PrimaRetenida),Prima_Cedida = sum(PrimaCedida),Ramo = Ramo, Prima_emitida  = sum(PrimaPoliza))
+  l[[k]] = l[[k]]%>% distinct()
+}
+```
+En caso de tratarse de pólizas anuales se usa prima emitida, si no, se usa devengada del año.
+```{r}
+#Sumar prima devengada por año de todos los ramos
+#Prima del año 1
+PDev_A1 = l[[1]]$Prima_devengada[1] 
+PDev_A1 = PDev_A1 + l[[2]]$Prima_devengada[1]
+PDev_A1 = PDev_A1 + l[[3]]$Prima_devengada[1]
+PDev_A1 = PDev_A1 + l[[4]]$Prima_devengada[1] 
+PDev_A1 = PDev_A1 +l[[5]]$Prima_devengada[1]
+#Prima del año 2
+PDev_A2 = l[[1]]$Prima_devengada[2] 
+PDev_A2 = PDev_A2 + l[[2]]$Prima_devengada[2]
+PDev_A2 = PDev_A2 + l[[3]]$Prima_devengada[2]
+PDev_A2 = PDev_A2 + l[[4]]$Prima_devengada[2] 
+PDev_A2 = PDev_A2 +l[[5]]$Prima_devengada[2]
+#Prima del año 3
+PDev_A3 = l[[1]]$Prima_devengada[3] 
+PDev_A3 = PDev_A3 + l[[2]]$Prima_devengada[3]
+PDev_A3 = PDev_A3 + l[[3]]$Prima_devengada[3]
+PDev_A3 = PDev_A3 + l[[4]]$Prima_devengada[3] 
+PDev_A3 = PDev_A3 +l[[5]]$Prima_devengada[3]
+#Prima del año 4
+PDev_A4 = l[[1]]$Prima_devengada[4] 
+PDev_A4 = PDev_A4 + l[[2]]$Prima_devengada[4]
+PDev_A4 = PDev_A4 + l[[3]]$Prima_devengada[4]
+PDev_A4 = PDev_A4 + l[[4]]$Prima_devengada[4] 
+PDev_A4 = PDev_A4 +l[[5]]$Prima_devengada[4]
+#Prima del año 5
+PDev_A5 = l[[1]]$Prima_devengada[5] 
+PDev_A5 = PDev_A5 + l[[2]]$Prima_devengada[5]
+PDev_A5 = PDev_A5 + l[[3]]$Prima_devengada[5]
+PDev_A5 = PDev_A5 + l[[4]]$Prima_devengada[5] 
+PDev_A5 = PDev_A5 +l[[5]]$Prima_devengada[5]
+
+PEO = c(PDev_A1,PDev_A2, PDev_A3,PDev_A4, PDev_A5)
+PEO
+```
+
+
+
+```{r Siniestros, generación de..., echo=TRUE}
+#Código para generar siniestros hipotéticos
+# Crear un data frame
+#Aquí los años de desarrollo se ordenan del mas antiguo al mas reciente
+set.seed(1234)
+#Siniestros
+m <- matrix(0, 5, 5)
+m[lower.tri(m,diag = TRUE)] <- runif(sum(lower.tri(m,TRUE)),4000,11000)  # Valores aleatorios
+m = t(m)
+m = m[, c(ncol(m):1)]
+#####################
+siniestro <- data.frame(m)
+#Gastos de ajuste
+m <- matrix(0, 5, 5)
+m[lower.tri(m,diag = TRUE)] <- runif(sum(lower.tri(m,TRUE)),2000,7000)  # Valores aleatorios
+m = t(m)
+m = m[, c(ncol(m):1)]
+gastos_ajuste = data.frame(m)
+#Recuperaciones
+m <- matrix(0, 5, 5)
+m[lower.tri(m,diag = TRUE)] <- runif(sum(lower.tri(m,TRUE)),1000,8000)  # Valores aleatorios
+m = t(m)
+m = m[, c(ncol(m):1)]
+#####################
+recuperaciones = data.frame(m)
+#Salvamentos
+m <- matrix(0, 5, 5)
+m[lower.tri(m,diag = TRUE)] <- runif(sum(lower.tri(m,TRUE)),200,2000)  # Valores aleatorios
+m = t(m)
+m = m[, c(ncol(m):1)]
+#####################
+salvamentos = data.frame(m)
+Base  = siniestro + gastos_ajuste + recuperaciones + salvamentos
+#############Se recomienda ampliamente el guardado en formato Feather
+#En vez de usar excel
+# Guardar en Feather
+#write_feather(Base, "Siniestros.feather")
+set.seed(1234)
+#Se trata de los siniestros ocurridos y reportados
+#La ley no exige su incorparación pero si reporteo
+m = runif(5,12000,70000)
+anio0 = data.frame(m)
+# Leer el archivo
+#df_leido <- read_feather("reservas.feather")
+#print(df_leido)
+```
+
+\section{Mejor estimación}
+Cálculo del estimador BEL para la reserva de siniestros ocurridos pero no reportados.
+
+\subsection*{Descripción del Método estatutario (CUSF 5.3.2)}
+\subsection{Creación de los triángulos de siniestros}
+```{r}
+Triangulo = function(Base,anio0){
+  Triang = cbind(anio0,Base)
+  colnames(Triang) = c("AD0","AD1","AD2","AD3","AD4","AD5")
+  rownames(Triang) = c("AO1","AO2","AO3","AO4","AO5")
+  return(Triang)
+}
+R_1 = Triangulo(Base,anio0)
+R_1
+```
+```{r}
+Factores_siniestralidad = function(Base,anio0,PEO){
+  Triang = Triangulo(Base,anio0)
+  for(k in 1:nrow(Base)){
+    Triang[k,]  =Triang[k,]/(PEO[k])
+  }
+  return(Triang)
+}
+F_SONOR = Factores_siniestralidad(Base,anio0,PEO)
+F_SONOR
+```
+\subsection{Simulacion de los factores de siniestralidad}
+Se usará el algoritmo de Metrópolis Hasstings descrito en la metodología.
+Primero debe identificar el monto de primas emitidas originadas $PEO_i$. Se calcula a continuación para cada año de origen $i\in \mathbb{N}$ y año de desarrollo $j \in \mathbb{N}$ el indice de reclamaciones registradas por los años $(i,j)$:
+
+$$F_{i,j} = \frac{R_{i,j}}{PEO_{i}}$$ 
+
+donde $R_{i,j}$ es el monto del siniestro, ajustes, gastos de ajuste, salvamentos y recuperaciones netos acomodados de la siguiente forma 
+El periodo mínimo es de $n=5$ años de experiencia aunque aquí se muestra tal cual en regulación donde pone al menos $n=7$ periodos (inciso d) disposición 5.3.2 fracción I. 
+
+Se pide que la información sea confiable, pertinente y oportuna. Confiable en que sea veraz y refleje la realidad, pertinente en que se refiera a la información solicitada y oportuna información correcta y en cuanto a su registro y obtención. Para generar la simulación usando estos indices se utilizarán los métodos de proyección detallados en la siguiente sección.
+
+Una vez aplicado el método de simulación se simularán las reclamaciones futuras a través de $\{F^{sim}_{i,j}\}$ mediante 
+
+$$r_{i,j} = F_{i,j}^{sim} \cdot PEO_i,$$
+
+se suman por cada año de origen $i \in \mathbb{N}$, los montos de reclamaciones simuladas $r_{i} = \sum_{j}R_{i,j}+ r_{i,j}$. 
+
+Se calculan los indices de siniestralidad última de la forma
+$$FS_{i} = \frac{r_i}{PEO_i}$$ 
+
+Esta será el $k$-ésimo escenario de la simulación para $k \in 1 , \dots N$ para $N \in \mathbb{N}$. Se entiende este proceso se repite hasta generar un total de $N$ escenarios. Se denota $FS_{i}^{k}$ el indice de siniestralidad última en la simulación $k$ y en año de origen $i$.
+
+\subsection{Algoritmo Metrópolis Hasstings}
+\subsubsection{Tamaño de la simulación}
+El error relativo se obtiene así:
+$$\frac{\bigg|FS_{i}^{k}-\mu \bigg|}{\mu}\leq \frac{z_{\alpha/2} \sigma}{\mu \sqrt{N}} \leq 1 \%.$$
+```{r}
+precision = .01
+significancia = .05/2
+significancia = 1-significancia
+media = colMeans(F_SONOR)
+desvi = colMeans(F_SONOR^2)-(media^2)
+desvi = sqrt(desvi)
+z = qnorm(significancia,mean = 0, sd=1)
+tamanio = z*desvi
+tamanio = tamanio/media
+tamanio = tamanio*z
+tamanio = tamanio/.01
+tamanio = tamanio^2
+#La muestra debe ser por lo menos de tamaños
+tamanio
+```
+
+
+\subsubsection{Implementación del algoritmo (ver Nota Técnica)}
+```{r}
+# Crea matriz con ventana de unos desplazándose por fila
+# n: filas, m: columnas (= n por defecto), k: longitud ventana
+# truncate: TRUE para truncar al borde, FALSE para wrap-around (cíclico)
+Proba =  function(n, m = n, k = 3, truncate = FALSE) {
+  stopifnot(n > 0, m > 0, k > 0)
+  if (truncate) {
+    outer(1:n, 1:m, function(i, j) as.integer(j >= i & j <= i + k - 1))
+  } else {
+    outer(1:n, 1:m, function(i, j) as.integer(((j - i) %% m) < k))
+  }
+}
+Pr = list()
+for(s in 1:5){
+  m3 = 5-s+1
+Pr1 = Proba(m3,m3,k=3,truncate = FALSE)
+#Pr2 = matrix(0, nrow = 5, ncol = 5)
+#Pr2[s:5, s:5] <- Pr1
+Pr[[s]] = 1/3*Pr1
+}
+```
+
+
+```{r}
+d = as.matrix(F_SONOR[,-1])
+d1 = colSums(d)
+prob= matrix(nrow =5, ncol = 5)
+for(k in 1:5){
+  prob[,k] = d[,k]/d1[k]
+}
+alfa = function(i,j,m){
+  pr2 = unlist(Pr[[m]])
+  q =pr2[i,j]/pr2[j,i]
+  a = prob[,i]
+  a  = a[which(a != 0)] 
+  a = a[i]/a[j]
+  if(is.na(q)){
+    a = prob[i,j]/prob[j,i]
+  }else if(is.na(a)){
+    a  = 1
+  }
+  else{a = min(1,a,q)}
+  return(a)
+}
+```
+Procede a tomarse cualquier valor admisible para cada renglón y a generarse un valor simulado.
+```{r}
+set.seed(1234)
+r = c(1:5)
+#De acuerdo al tamaño estimado
+tamano_muestra = 600000
+columnas_a_simular = 5
+simulacion = matrix(nrow = 5,ncol  =tamano_muestra)
+for(m in 1:columnas_a_simular){
+  t0 = 1
+for(k in 1:tamano_muestra){
+  pr2 = unlist(Pr[[m]])
+  #Se va a partir como valor inicial en cada año de desarrollo
+  #del primer valor de la cadena (renglón 1)
+  t1 = sample(size = 1,c(1:ncol(pr2)),prob = pr2[t0,1:ncol(pr2)])
+  while(alfa(t0,t1,m)<(1-alfa(t0,t1,m))){
+  t1 = sample(size = 1,c(1:ncol(pr2)),prob = pr2[t0,1:ncol(pr2)])
+  }
+  simulacion[m,k] = t1
+  t0  = t1
+}
+}
+unique(simulacion[5,])
+```
+Esto indica escojase el indice número
+```{r}
+simulacion[,8]
+```
+de cada columna de 
+```{r}
+F_SONOR
+```
+Es decir
+```{r}
+factores = matrix(ncol = 5, nrow = tamano_muestra)
+#Año de desarrollo 1
+for(u in 1:5){
+factores[,u] = F_SONOR[simulacion[u,],u+1]
+}
+```
+\subsection{Cálculo de los indices de siniestralidad última ($r_{i,j}$)}
+$r_{i,j} = F_{i,j}^{sim} \cdot PEO_i$
+```{r}
+r = factores
+#Cada simulación de factor por año de desarrollo se calcula
+#repetida por cada año de origen y se multiplica la prima emitida 
+#de este para obtener los indices de siniestralidad ultima
+rAO1 = r*PEO[1]
+rAO2 = r*PEO[2]
+rAO3 = r*PEO[3]
+rAO4 = r*PEO[4]
+rAO5 = r*PEO[5]
+```
+Se suman por cada año de origen los montos de reclamaciones simuladas a las conocidas. $r_i = \sum_{j} R_{i,j} +r_{i,j}$
+```{r}
+r_i1 = colSums(t(rAO1))
+r_i1 = r_i1 + colSums(t(R_1[,-1]))[1]
+
+r_i2 = colSums(t(rAO2))
+r_i2 = r_i2 + colSums(t(R_1[,-1]))[2]
+
+r_i3 = colSums(t(rAO3))
+r_i3 = r_i3 + colSums(t(R_1[,-1]))[3]
+
+r_i4 = colSums(t(rAO4))
+r_i4 = r_i4 + colSums(t(R_1[,-1]))[4]
+
+r_i5 = colSums(t(rAO5))
+r_i5 = r_i5 + colSums(t(R_1[,-1]))[5]
+```
+Finalmente se obtienen los indices de siniestralidad última por año de origen ($FS_i$).
+```{r}
+FS1 = r_i1/PEO[1]
+FS2 = r_i2/PEO[2]
+FS3 = r_i3/PEO[3]
+FS4 = r_i4/PEO[4]
+FS5 = r_i5/PEO[5]
+
+```
+\subsection{PRIMER INSUMO BEL IBNR $FS_{BEL}^{IBNR}$}
+$$FS_{BEL}^{IBNR} = \sum_{k=1}^{N} \sum_{i=1}^{n} \frac{FS_i^k}{N*n}$$
+Sumamos los años de origen y se divide entre el número de años de origen 
+
+```{r}
+FS_BEL_IBNR = FS1 + FS2 + FS3 + FS4+FS5
+FS_BEL_IBNR = FS_BEL_IBNR/5
+```
+
+```{r}
+head(FS_BEL_IBNR)
+```
+Se toma la media de este vector:
+```{r}
+FS_BEL_IBNR = mean(FS_BEL_IBNR)
+FS_BEL_IBNR
+```
+\subsection{Calculo del factor de devengamiento}
+$$\frac{\text{siniestralidad remanente}}{\text{siniestralidad total}}$$
+```{r}
+S_total = FS1 + FS2 + FS3 + FS4+FS5
+S_total = mean(S_total/5)
+#######################
+S_remanente5 = FS5/5
+S_remanente5 = mean(S_remanente5)
+Dev_5 = S_remanente5/S_total
+#######################
+S_remanente4 = (FS4 +FS5)/5
+S_remanente4 = mean(S_remanente4)
+Dev_4 = S_remanente4/S_total
+#######################
+S_remanente3 = (FS3 +FS4+FS5)/5
+S_remanente3 = mean(S_remanente3)
+Dev_3 = S_remanente3/S_total
+#######################
+S_remanente2 = (FS2+FS3+FS4+FS5)/5
+S_remanente2 = mean(S_remanente2)
+Dev_2 = S_remanente2/S_total
+#######################
+S_remanente1 = (FS1+FS2+FS3+FS4+FS5)/5
+S_remanente1 = mean(S_remanente1)
+Dev_1 = S_remanente1/S_total
+```
+Los factores son
+```{r}
+Dev_1
+Dev_2
+Dev_3
+Dev_4
+Dev_5
+```
+\subsection{Reserva SONOR de cada ramo}
+
+```{r}
+colnames(RR3_FICTICIO)
+head(RR3_FICTICIO)
+```
+Se calcula la prima de tarifa devengada por año de origen para cada cartera de la institución. 
+
+Una vez agrupada por producto y año de origen se procede a calcular el sumando por año de origen que será la mejor estimación por dicho año de desarrollo.
+
+```{r}
+#Sólo para efectos de control se calculará la reserva por producto
+SONOR_prodO1 = l[[1]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+SONOR_prodO2 = l[[2]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+SONOR_prodO3 = l[[3]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+SONOR_prodO4 = l[[4]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+SONOR_prodO5 = l[[5]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+SONOR_prodO6 = l[[6]]$Prima_devengada*FS_BEL_IBNR*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+
+Sum_SONOR_prodO1 = sum(SONOR_prodO1)
+Sum_SONOR_prodO2 = sum(SONOR_prodO2)
+Sum_SONOR_prodO3 = sum(SONOR_prodO3)
+Sum_SONOR_prodO4 = sum(SONOR_prodO4)
+Sum_SONOR_prodO5 = sum(SONOR_prodO5)
+Sum_SONOR_prodO6 = sum(SONOR_prodO6)
+
+Sum_SONOR_prodO1 
+Sum_SONOR_prodO2 
+Sum_SONOR_prodO3 
+Sum_SONOR_prodO4 
+Sum_SONOR_prodO5 
+Sum_SONOR_prodO6 
+```
+Con esto se tiene el cálculo de la mejor estimación.
+\section{Margen de riesgo}
+```{r}
+#Cuantil 0.99 de la circular, copiar aquí
+F_99 = .6470
+diff = abs(FS_BEL_IBNR-F_99)
+```
+Los factores de retención se calculan de la siguiente manera:
+```{r}
+FR_prod1 = l[[1]]$Prima_Retenida 
+FR_prod2 =  l[[2]]$Prima_Retenida
+FR_prod3 =  l[[3]]$Prima_Retenida 
+FR_prod4 =  l[[4]]$Prima_Retenida 
+FR_prod5 = l[[5]]$Prima_Retenida
+FR_prod6 = l[[6]]$Prima_Retenida
+
+Prima_emitida_prod1 = l[[1]]$Prima_emitida 
+Prima_emitida_prod2 = l[[2]]$Prima_emitida 
+Prima_emitida_prod3= l[[3]]$Prima_emitida 
+Prima_emitida_prod4 = l[[4]]$Prima_emitida 
+Prima_emitida_prod5 = l[[5]]$Prima_emitida
+Prima_emitida_prod6 = l[[6]]$Prima_emitida
+
+Prima_devengada_prod1 = l[[1]]$Prima_devengada
+
+Prima_devengada_prod2 = l[[2]]$Prima_devengada 
+
+Prima_devengada_prod3 = l[[3]]$Prima_devengada 
+
+Prima_devengada_prod4 = l[[4]]$Prima_devengada 
+
+Prima_devengada_prod5 = l[[5]]$Prima_devengada
+
+Prima_devengada_prod6 = l[[6]]$Prima_devengada
+
+FR_prod1 = FR_prod1/Prima_emitida_prod1
+FR_prod1
+
+FR_prod2 = FR_prod2/Prima_emitida_prod2
+FR_prod2
+
+FR_prod3 = FR_prod3/Prima_emitida_prod3
+FR_prod3
+
+FR_prod4 = FR_prod4/Prima_emitida_prod4
+FR_prod4
+
+FR_prod5 = FR_prod5/Prima_emitida_prod5
+FR_prod5
+
+FR_prod6 = FR_prod6/Prima_emitida_prod6
+FR_prod6
+
+Desviacion_1 = diff*FR_prod1*Prima_devengada_prod1*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_2 = diff*FR_prod2*Prima_devengada_prod2*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_3 = diff*FR_prod3*Prima_devengada_prod3*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_4 = diff*FR_prod4*Prima_devengada_prod4*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_5 = diff*FR_prod5*Prima_devengada_prod5*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_6 = diff*FR_prod6*Prima_devengada_prod6*c(Dev_1,Dev_2,Dev_3,Dev_4,Dev_5)
+Desviacion_siniestralidad_1 = sum(Desviacion_1)
+Desviacion_siniestralidad_2 = sum(Desviacion_2)
+Desviacion_siniestralidad_3 = sum(Desviacion_3)
+Desviacion_siniestralidad_4 = sum(Desviacion_4)
+Desviacion_siniestralidad_5 = sum(Desviacion_5)
+Desviacion_siniestralidad_6 = sum(Desviacion_6)
+
+Desviacion_siniestralidad_1
+Desviacion_siniestralidad_2
+Desviacion_siniestralidad_3
+Desviacion_siniestralidad_4
+Desviacion_siniestralidad_5
+Desviacion_siniestralidad_6
+
+suma = Desviacion_siniestralidad_1
+suma = suma +Desviacion_siniestralidad_2
+suma = suma +Desviacion_siniestralidad_3
+suma = suma +Desviacion_siniestralidad_4
+suma = suma +Desviacion_siniestralidad_5
+suma = suma +Desviacion_siniestralidad_6
+
+Desviacion_siniestralidad_1/suma
+Desviacion_siniestralidad_2/suma
+Desviacion_siniestralidad_3/suma
+Desviacion_siniestralidad_4/suma
+Desviacion_siniestralidad_5/suma
+Desviacion_siniestralidad_6/suma
+```
+\subsection{Base de capital}
+La base de capital se define como 
+ $$BC_{RSONOR,ramo} = \frac{\mathcal{D}_{RSONOR,ramo}}{\sum_{ramo}\mathcal{D}_{RRC,ramo}+\sum_{ramo}\mathcal{D}_{RRC,ramo}^{LP}+\sum_{ramo}\mathcal{D}_{RSONOR,ramo}} \cdot RCS$$
+Sin embargo para obtenerla sería necesario contar con las otras desviaciones de las reservas de riesgos en curso largo y corto plazo así como el requerimiento de capital de solvencia.
+\subsection{La duración $DU$}
+Posteriormente se calculará la duración $DU_{RSONOR,ramo}$ a
+
+$$DU_{RSONOR} = \sum_{t=0}^{n-1} v^{t} \cdot F_{RSONOR}(t)$$
+Aquí $F_{RSONOR}(t) = \frac{\sum_{k=t}^{n} f_{RSONOR}(k)}{\sum_{k=1}^{n} f_{RSONOR}(k)}$ es una estimación de la proporción de obligaciones que se espera, se mantengan en persistencia hasta el año $t$ por operación, ramo otipo de seguro.
+    
+   $f_{RSONOR}(k)$ es el flujo de obligaciones estimadas en el año $k$ correspondientes a la reserva SONOR. $v$ es el factor de valor presente a tasa libre de riesgo al tipo de moneda que estén nominadas las obligaciones del seguro que se trate.
+
+\subsubsection{Duración}
+Para obtener los flujos futuros por siniestros ocurridos pero no reportados
+```{r}
+i = .0699
+v = 1/(1+i)
+#Producto 1
+#Primer año de desarrollo
+f_prod1_t1 = sum(SONOR_prodO1)/sum(SONOR_prodO1)
+#Segundo año de desarrollo
+f_prod1_t2 = sum(SONOR_prodO1[-c(1)])/sum(SONOR_prodO1)
+#Segundo año de desarrollo
+f_prod1_t3 = sum(SONOR_prodO1[-c(1,2)])/sum(SONOR_prodO1)
+#Segundo año de desarrollo
+f_prod1_t4 = sum(SONOR_prodO1[-c(1,2,3)])/sum(SONOR_prodO1)
+#Segundo año de desarrollo
+f_prod1_t5 = sum(SONOR_prodO1[-c(1,2,3,4)])/sum(SONOR_prodO1)
+f_prod1_t6 = sum(SONOR_prodO1[-c(1,2,3,4)])/sum(SONOR_prodO6)
+v1 = c(1,v,v^2,v^3,v^5)
+DU_prod01 = c(f_prod1_t1,f_prod1_t2,f_prod1_t3,f_prod1_t4,f_prod1_t5)*v1
+DU_prod01 = sum(DU_prod01)
+#####Producto2
+#Primer año de desarrollo
+f_prod2_t1 = sum(SONOR_prodO2)/sum(SONOR_prodO2)
+#Segundo año de desarrollo
+f_prod2_t2 = sum(SONOR_prodO2[-c(1)])/sum(SONOR_prodO2)
+#Segundo año de desarrollo
+f_prod2_t3 = sum(SONOR_prodO2[-c(1,2)])/sum(SONOR_prodO2)
+#Segundo año de desarrollo
+f_prod2_t4 = sum(SONOR_prodO2[-c(1,2,3)])/sum(SONOR_prodO2)
+#Segundo año de desarrollo
+f_prod2_t5 = sum(SONOR_prodO2[-c(1,2,3,4)])/sum(SONOR_prodO2)
+v1 = c(1,v,v^2,v^3,v^5)
+DU_prod02 = c(f_prod2_t1,f_prod2_t2,f_prod2_t3,f_prod2_t4,f_prod2_t5)*v1
+DU_prod02 = sum(DU_prod02)
+#####Producto3
+#Primer año de desarrollo
+f_prod3_t1 = sum(SONOR_prodO3)/sum(SONOR_prodO3)
+#Segundo año de desarrollo
+f_prod3_t2 = sum(SONOR_prodO3[-c(1)])/sum(SONOR_prodO3)
+#Segundo año de desarrollo
+f_prod3_t3 = sum(SONOR_prodO3[-c(1,2)])/sum(SONOR_prodO3)
+#Segundo año de desarrollo
+f_prod3_t4 = sum(SONOR_prodO3[-c(1,2,3)])/sum(SONOR_prodO3)
+#Segundo año de desarrollo
+f_prod3_t5 = sum(SONOR_prodO3[-c(1,2,3,4)])/sum(SONOR_prodO3)
+v1 = c(1,v,v^2,v^3,v^5)
+DU_prod03 = c(f_prod3_t1,f_prod3_t2,f_prod3_t3,f_prod3_t4,f_prod3_t5)*v1
+DU_prod03 = sum(DU_prod03)
+#####Producto4
+#Primer año de desarrollo
+f_prod4_t1 = sum(SONOR_prodO4)/sum(SONOR_prodO4)
+#Segundo año de desarrollo
+f_prod4_t2 = sum(SONOR_prodO4[-c(1)])/sum(SONOR_prodO4)
+#Segundo año de desarrollo
+f_prod4_t3 = sum(SONOR_prodO4[-c(1,2)])/sum(SONOR_prodO4)
+#Segundo año de desarrollo
+f_prod4_t4 = sum(SONOR_prodO4[-c(1,2,3)])/sum(SONOR_prodO4)
+#Segundo año de desarrollo
+f_prod4_t5 = sum(SONOR_prodO4[-c(1,2,3,4)])/sum(SONOR_prodO4)
+v1 = c(1,v,v^2,v^3,v^5)
+DU_prod04 = c(f_prod4_t1,f_prod4_t2,f_prod4_t3,f_prod4_t4,f_prod4_t5)*v1
+DU_prod04 = sum(DU_prod04)
+#####Producto5
+#Primer año de desarrollo
+f_prod5_t1 = sum(SONOR_prodO5)/sum(SONOR_prodO5)
+#Segundo año de desarrollo
+f_prod5_t2 = sum(SONOR_prodO5[-c(1)])/sum(SONOR_prodO5)
+#Segundo año de desarrollo
+f_prod5_t3 = sum(SONOR_prodO5[-c(1,2)])/sum(SONOR_prodO5)
+#Segundo año de desarrollo
+f_prod5_t4 = sum(SONOR_prodO5[-c(1,2,3)])/sum(SONOR_prodO5)
+#Quinto año de desarrollo
+f_prod5_t5 = sum(SONOR_prodO5[-c(1,2,3,4)])/sum(SONOR_prodO5)
+v1 = c(1,v,v^2,v^3,v^5)
+DU_prod05 = c(f_prod5_t1,f_prod5_t2,f_prod5_t3,f_prod5_t4,f_prod5_t5)*v1
+DU_prod05 = sum(DU_prod05)
+
+#####Producto6
+#Primer año de desarrollo
+f_prod6_t1 = sum(SONOR_prodO6)/sum(SONOR_prodO6)
+#Segundo año de desarrollo
+f_prod6_t2 = sum(SONOR_prodO6[-c(1)])/sum(SONOR_prodO6)
+#Segundo año de desarrollo
+f_prod6_t3 = sum(SONOR_prodO6[-c(1,2)])/sum(SONOR_prodO6)
+#Segundo año de desarrollo
+f_prod6_t4 = sum(SONOR_prodO6[-c(1,2,3)])/sum(SONOR_prodO6)
+#Segundo año de desarrollo
+f_prod6_t5 = sum(SONOR_prodO6[-c(1,2,3,4)])/sum(SONOR_prodO6)
+v1 = c(1,v,v^2,v^3,v^4,v^5)
+DU_prod06 = c(f_prod6_t1,f_prod6_t2,f_prod6_t3,f_prod6_t4,f_prod6_t5)*v1
+DU_prod06 = sum(DU_prod06)
+```
+
+\subsection{Cálculo del margen de riesgo}
+```{r}
+#Base de la inversión
+#Requerimiento de capital de solvencia hipotético
+RCS = 6500000
+Suma_otras_desviaciones = 11000000000
+BC1 = RCS *Desviacion_siniestralidad_1/(suma+Suma_otras_desviaciones)
+BC2 = RCS *Desviacion_siniestralidad_2/(suma+Suma_otras_desviaciones)
+BC3 = RCS *Desviacion_siniestralidad_3/(suma+Suma_otras_desviaciones)
+BC4 = RCS *Desviacion_siniestralidad_4/(suma+Suma_otras_desviaciones)
+BC5 = RCS *Desviacion_siniestralidad_5/(suma+Suma_otras_desviaciones)
+BC6 = RCS *Desviacion_siniestralidad_6/(suma+Suma_otras_desviaciones)
+```
+
+```{r}
+#Bases de capital
+BC1
+BC2
+BC3
+BC4
+BC5
+BC6
+```
+Esto se multiplica por la duración y la tasa de costo neto de capital.
+```{r}
+MR1_SONOR = BC1*.1*DU_prod01
+MR2_SONOR = BC2*.1*DU_prod02
+MR3_SONOR = BC3*.1*DU_prod03
+MR4_SONOR = BC4*.1*DU_prod04
+MR5_SONOR = BC5*.1*DU_prod05
+MR6_SONOR = BC6*.1*DU_prod05
+```
+
+```{r}
+#Margen de riesgo
+MR1_SONOR 
+MR2_SONOR 
+MR3_SONOR 
+MR4_SONOR 
+MR5_SONOR 
+MR6_SONOR 
+```
+
+```{r}
+#Reserva SONOR
+Sum_SONOR_prodO1 + MR1_SONOR 
+Sum_SONOR_prodO2 + MR2_SONOR 
+Sum_SONOR_prodO3 + MR3_SONOR 
+Sum_SONOR_prodO4 + MR4_SONOR 
+Sum_SONOR_prodO5 + MR5_SONOR 
+Sum_SONOR_prodO6 + MR6_SONOR 
+```
+
