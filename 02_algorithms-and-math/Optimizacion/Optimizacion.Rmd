@@ -1,0 +1,279 @@
+---
+title: "Optimizacion_matematica"
+author: "Alejandro Garcia de Leon"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+\section{Datos incompletos}
+Como modelo para aplicar la prueba retrospectiva, se considerará la variale aleatoria, número de exitos en un ensayo de 12 meses.
+
+Supongamos que $X$ es la variable aleatoria que cuenta la cantidad de veces que el indice de siniestralidad esperado (calculado porel encargado de la función actuarial previamente) realmente durante el año disto en menos de cierto valor denominado precisión de la prueba. Entonces si $FS_{observado}$ es el indice de siniestralidad observado realmente y $FS_{BEL}^{SONOR}$ es el factor de siniestralidad calculado por el actuario de cualquier reserva, supongamos en este caso SONOR para fines ejemplificativos, $X \sim Bin(12,\theta)$ donde 
+
+$$\theta = \mathbb{P}(|FS_{BEL}^{SONOR}-FS_{observado}|< \epsilon),$$
+
+donde $\epsilon$ es la precisión.
+
+La información que se necesita es la siguiente:
+\begin{enumerate}
+\item 3 años de historia.
+\item Cada uno de esos 3 años debe proporcionar el indice de siniestralidad observado por mes.
+\item Cada uno de esos 3 años debe proporcionar un indice de siniestralidad teórico, estimado por el actuario en cada mes.
+\item Un criterio conveniente para fijar la precisión $\epsilon$.
+\item Si las nuevas observaciones del siguiente año se denotan por $\{ z_i^{+} \}_{i=1}^{12}$ y las anteriores que si son conocidas por $\{ x_i \}_{i=1}^{12}$ son muestras aleatorias de tamaño 12 donde el signo + en las primeras denota que se encuentran censuradas por la derecha, necesitamos pues una forma de usar los dos tipos de información conocida y desconocida. Supongamos que dada la información histórica, solo se sabe que $(z>a)$ para cierto valor $a$.
+\item El criterio para estimar $\theta$ a partir de la información conocida y de la censurada del año desconocido será utilizar el algoritmo EM (Expectation-Maximization). 
+\end{enumerate}
+\section{Algoritmo Expectation-Maximization}
+El algoritmo se compone de dos pasos:
+
+\begin{itemize}
+\item Paso E: Se estiman los datos incompletos a partir de los observados y de algún valor preeliminar del parámetro del modelo.
+
+\item Paso M: Se maximiza la función de verosimilitud bajo las hipótesis de que los datos incompletos son conocidos. Los faltantes son las estimaciones del paso anterior.
+\end{itemize}
+
+\section{Técnica para Expectation}
+Para estimar los nuevos datos a partir de los conocidos se usará la función de pérdida, esperanza con censura. Adicionalmente se asumirá que $z$ los nuevos datos desconocidos, denotan número de veces que $|FS_{BEL}^{SONOR}-FS_{observado}|< \epsilon$. 
+
+Entonces la función de log-verosimilitud de los datos censurados es
+
+$$\sum_{i=1}^{12} log(f(\theta|z_{i}^{+}))$$
+
+Como tal para eliminar el efecto de censura necesitamos deshacernos de los datos desconocidos o usar lo que sabemos de ellos. Esto se hace de aplicar esperanza.
+
+$$\mathbb{E}[\sum_{i=1}^{12} log(f(\theta|z_{i}^{+}))]$$
+
+Evidentemente la esperanza es sobre las $z_{i}^{+}$ por lo que es necesario hacer algún supuesto aprioristico sobre su distribución. 
+
+\begin{itemize}
+\item Se asume que la distribución de los datos no censurados es la misma de los datos conocidos $x_i$.
+\item Como $X \sim Bin(12, \theta)$, la función de distribución es de la forma $F_{X}(x) = \sum_{n \leq x} \binom{12}{n} \theta^{x} (1-\theta)^{12-x}$ y si $z^{+}$ esta censurada por la derecha, es decir solo se sabe que $z>a$, $F_{X}(z^{+}) = \sum_{n \leq x} \frac{\binom{12}{n} \theta^{x} (1-\theta)^{12-x}}{1-F_{X}(a)}$.
+\end{itemize}
+```{r}
+siniestralidad = runif(12, min = 110, max = 130)
+excesos_pasados1 = c(12,23,45,56,12,1,2,23,12,12,10,11)
+excesos_pasados2 = c(10,16,24,23,21,34,4,45,11,10,20,31)
+excesos_pasados3 = c(8,3,2,14,1,1,4,12,11,15,6,7)
+a = min(excesos_pasados1,excesos_pasados2,excesos_pasados3)
+```
+\section{Técnica para simulación}
+El procedimiento es calcular la anterior esperanza, usando integración Monte Carlo.
+Primero se simula una distribución $X \sim Bin(12, \theta)$ para $\theta$ el valor desconocido. 
+
+Una vez hecho esto y con estas simulaciones, se calcula la media de la variable aleatoria $\frac{f_{X}(X|X>a)}{F_{X}(X|X>a)}$. En el caso del evento condicionante se asume una distribución con valor inicial $\theta_0$ que puede consistir en le valor de la pruea anterior.
+
+```{r}
+#Insumos
+set.seed(1234)
+precision1 = 30
+theta0  = .83
+#precision1 = qbinom(precision,12,prob = .8)
+  x1 = rbinom(1000,12,.8)
+```
+
+Una vez definidos los insumos la idea sería  aplicar a la simulación la densidad y despues el logaritmo para suavizar. Para efectos ilustrativos se asignará un valor a $\theta$ aunque en realidad este será un vector de parámetros libre y de aquel que se va a maximizar la log verosimilitud. Se recuerda que la logsimilitud es: 
+
+$$\sum_{i=1}^{12} log(f(\theta|z_{i}^{+}))$$
+```{r}
+######Solo con fines ejemplificativos
+theta = .7
+#########logsimilitud
+y  = sapply(x1, function(x) dbinom(x, prob=theta, size = 12))
+y = sapply(y, function(x) log(x))
+```
+Se hace hincapié en que no se esta calculando la logsimilitud sino el logaritmo de la función de verosimilitud de cada simulación.
+
+Una vez hecho esto se aplica la parte de censura por la derecha
+```{r}
+#Se calcula el denominador 1/1-F(a)
+y1 = sapply(x1, function(x) dbinom(x, prob=theta0, size =12))
+y2 =  1-pbinom(a, prob=theta0, size =12)
+```
+
+Ahora se obtiene el valor esperado de $\frac{f_{X}(X|X>a)}{F_{X}(X|X>a)}$
+```{r}
+#Expectation
+#Distribución censurada
+y3 = y1/y2
+y=y*y3
+#Ajuste para integración Monte Carlo
+y=(y*(1-pbinom(a,size = 12,prob = theta0)))/dbinom(x1,size =12,prob  =theta0)
+#Se vuelven 0, observaciones menores al valor a, pero contandolas para la media
+y = ifelse(x1<a, 0, y)
+```
+
+Finalmente por identica distribución, al ser una suma de log verosimilitudes,
+
+$$\sum_{i=1}^{12} log(f(\theta|z_{i}^{+})) = 12 \cdot log(f(\theta|z_{i}^{+}))$$
+
+Por lo que cada resultado debe multiplicarse por 12.
+```{r}
+y  =12*mean(y)
+y
+```
+Para la log verosimilitud normal basta aplicar a la muestra la verosimilitud en función del parámetro desconocido.
+```{r}
+set.seed(1234)
+precision1 = 30
+#precision1 = qbinom(precision,12,prob = .8)
+  x1 = rbinom(1000,12,.8)
+  x45 = x1
+  #a= precision1#max(abs(siniestralidad-siniestralidadO)<precision1)
+  #x1 = x1[x1>a]
+  x2 = ifelse(excesos_pasados1<=precision1, 1, 0)
+  x2 = sum(x2)
+  x3 = ifelse(excesos_pasados2<=precision1, 1, 0)
+  x3 = sum(x3)
+  x4 = ifelse(excesos_pasados3<=precision1, 1, 0)
+  x4 = sum(x4)
+  x5 = c(x2,x3,x4)
+```
+
+
+```{r}
+z1 = sapply(x5, function(x) dbinom(x,prob = theta, size  =12)) 
+z1 = sapply(z1, function(x) log(x))
+sum(z1)
+```
+\section{Técnica para Maximización}
+Se utilizará para maximizar una variante del método iterativo de Newton.
+
+La técnica del lagrangiano en matemáticas es usada para encontrar máximos y mínimos de una función $f: \mathbb{R}^n \rightarrow \mathbb{R}$. En ocasiones desea resolverse un problema de optimización acotado por una región factible. Entonces es común querer introducir estas restricciones a un operador el cual se maximizaría 
+$$\mathbb{L}(\vec{x}) = f(\vec{x})-r_1(\vec{x})-\ldots-r_n(\vec{x}))$$
+
+donde las $r_i$ son las restricciones traducidas a funciones. Ahora bien el mecanismo es usar igualación de las segundas derivadas a 0. Una vez hecho esto tomar la matriz de segundas derivadas y si esta definida positiva o negativa será un máximo o un mínimo.
+
+Para resolver el sistema de ecuaciones de derivadas parciales, es necesario usar el método de Newton en varias variables. Se construye el Jacobiano de cada derivada que equivale en este caso a la matriz Hessiana de la función original y se debe resolver $x_n = x_{n-1}-H^{-1}(x_{n-1}) f(x_{n-1})$.
+
+La técnica utilizada busca aproximar la matriz Hessiana en vez de calcularla directamente.
+
+\subsection{Método Broyden-Fletcher}
+
+Este método consiste en que se aproxima la Hessiana usando  $B_0$ un valor inicial y $B_{k+1} = B_k + U_k + V_k$ donde las dos últimas son simétricas de rango uno.Para permitir que sean positivas definidas puede usarse dos vectores, u y v y encontrar dos constantes $\alpha,\beta$ de tal forma que $U_k = \alpha u \cdot u^t$ y $V_k = \beta v \cdot v^t$.
+
+Se puede simplificar el método de Newton sobre la derivada mediante
+
+$$B_k s_k =  B_k (x_{k+1} -x_{k})$$
+
+Esto es igual a 
+
+$$\nabla f(x_{k+1}) - \nabla f(x_{k}) = y_k$$
+
+Esto haciendo $s_k = x_{k+1}-x_{k}$. Si $u = y_k$ y $v = B_{k} s_k$ entonces
+
+$$\alpha = \frac{1}{y_{k}^{t} s_{k}}$$ 
+
+$$\beta = - \frac{1}{s_{k}^{t} B_{k} s_{k}}$$
+
+\subsubsection{La inversa de la Hessiana}
+Se usa la fórmula de Sherman Morrisson para hallar la matriz inversa.
+
+$$\frac{y_k \cdot y_k^{t}}{y_{k}^{t} s_{k}}-\frac{(B_{k} s_k) \cdot (B_{k} s_k)^{t}}{s_{k}^{t} B_{k} s_{k}}$$
+
+```{r eval=FALSE, include=FALSE}
+x = rcauchy(4567,8,9)
+neg_loglik_cauchy <- function(par, data) {
+  theta <- par[1]
+  gamma <- exp(par[2])   # garantiza gamma > 0
+  # log densidad
+  loglik <- sum(dcauchy(data, location = theta, scale = gamma, log = TRUE))
+  return(-loglik)  # optim minimiza
+}
+
+
+
+start <- c(theta = median(x), log_gamma = 0)
+
+
+
+fit <- optim(par = start,
+
+             fn = neg_loglik_cauchy,
+
+             data = x,
+
+             method = "BFGS")
+
+
+
+fit
+theta_hat <- fit$par[1]
+
+gamma_hat <- exp(fit$par[2])
+
+
+
+c(theta_hat, gamma_hat)
+```
+
+
+
+Se considerará la siniestralidad mensual; supongamos que $\theta$ es el valor aleatorio de la verdadera siniestralidad. Se trata entonces de una muestra de 12 observaciones desconocidas $\{ z_i \}_{i=1}^{12}$. Ahora bien se utilizarán los valores de la siniestralidad estimada $\{ x_i \}_{i=1}^{12}$ en una base de datos ficticia para efectos de este ejemplo de la manera siguiente:
+```{r}
+siniestralidad = runif(12, min = 110, max = 130)
+excesos_pasados1 = c(12,23,45,56,12,1,2,23,12,12,10,11)
+excesos_pasados2 = c(10,16,24,23,21,34,4,45,11,10,20,31)
+excesos_pasados3 = c(8,3,2,14,1,1,4,12,11,15,6,7)
+a = min(excesos_pasados1,excesos_pasados2,excesos_pasados3)
+```
+
+Lo que se desea medir es $|X-Z|$. Sea la probabilidad de que esta distancia sea menor que una precisión $\epsilon$ como $\theta$. Luego esta distribución condicionada a $Z$ es una binomial de parámetros $(\theta,12)$ donde se desea estimar $\theta$. Necesitamos una distribución para los datos desconocidos de la variable aleatoria $Z$. 
+
+Usando información pasada se ajustará una distribución para estos datos.
+
+Supondremos que la siniestralidad observada fue de 
+
+```{r}
+set.seed(1234)
+siniestralidadO = runif(12,min =min(siniestralidad), max = max(siniestralidad))
+```
+Se asumirán los datos censurados por la derecha, es decir mayores o iguales que las cantidades de arriba.
+
+$$f(x,z|\theta) = \prod_{i=1}^{12} f(x_i|\theta) \prod_{i=1}^{12} f(z_{i}^{+}|\theta)$$
+
+Aquí $X$ es la variable aleatoria número de veces que la siniestralidad esperada dista poco de la observada. $Z$ representa en camio, el número de veces que la siniestralidad esperada dista poco de la observada considerando las observaciones censuradas. Para obtener el mejor ajuste se usará la experiencia del año anterior considerada como experiencia completa mientras que la del presente ejercicio, solo se considerará censurada por la derecha.
+
+$$\prod_{i=1}^{12} f(z_i^{+}|\theta) = \prod_{i=1}^{12}\frac{ f(z_i|\theta) \mathbb{I}_{(cota,+ \infty)}}{ (1-F(cota))}$$
+
+Calculo de la esperanza $Q(\theta|\theta_0,x)=\mathbb{E}[log(L(\theta|x,z))|\theta_0,x]$
+
+El valor inicial de la probabilidad $\theta_0$ será el valor de la prueba anterior digamos $0.83$. Usaremos integración montecarlo para calcular esta integral.
+
+```{r}
+Q = function(theta,theta0){
+  y  = sapply(x1, function(x) dbinom(x, prob=theta, size = 12))
+  y = sapply(y, function(x) log(x))
+  y1 = sapply(x1, function(x) dbinom(x, prob=theta0, size =12))
+  y2 =  1-pbinom(a, prob=theta0, size =12)
+  y3 = y1/y2
+  y=y*y3
+  y=(y*(1-pbinom(a,size = 12,prob = theta0)))/dbinom(x1,size =12,prob  =theta0)
+   y = ifelse(x1<a, 0, y)
+  z1 = sapply(x5, function(x) dbinom(x,prob = theta, size  =12)) 
+  z1 = sapply(z1, function(x) log(x))
+  y = 12*mean(y)+sum(z1)
+  return(y)
+}
+theta0 =.83
+Q(theta=.7,theta0 =.83)
+```
+Una vez calculada la logsimilitud se maximizará.
+
+
+\section{Uso del hessiano}
+
+\subsection{Maximización de la esperanza}
+A continuación se optimizará el operador esperanza.
+
+```{r warning=FALSE}
+set.seed(12345)
+start = .83
+fit <- optim(par = start,
+
+             fn = Q,
+
+             theta0 = .83,
+
+             method = "BFGS",control = list(fnscale = -1))
+fit
+```
+
