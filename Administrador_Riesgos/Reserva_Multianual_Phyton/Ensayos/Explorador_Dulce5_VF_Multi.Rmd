@@ -1,0 +1,2000 @@
+---
+title: "Explorador_Dulce5"
+author: "Alejandro García de Leon"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+\section{Siniestros}
+Importacion de datos
+Creación del archivo
+```{python eval=FALSE, include=FALSE}
+import os
+ruta  =os.path.join("C:/Users/agarciadeleon/R_Studio/Scripts/Carp1/P1")
+os.chdir(ruta)
+from openpyxl import load_workbook
+import csv
+
+wb = load_workbook("Siniestros FONACOT 07052026.xlsx", read_only=True)
+k = wb.sheetnames
+
+for k1 in k:
+ ws = wb[k1]#wb.active  # o especificar nombre de hoja
+ nombre = "siniestros" + k1 + ".csv"
+ with open(nombre, "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    for row in ws.iter_rows(values_only=True):
+        writer.writerow(row)
+```
+
+Importación del archivo
+```{python}
+import pandas as pd
+siniestrosParte_1 = pd.read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 1.csv")
+siniestrosParte_2 = pd.read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 2.csv")
+siniestrosF = pd.concat([siniestrosParte_1, siniestrosParte_2], axis=0)
+siniestrosF.columns
+#Importación actualizada del vigor
+import pandas as pd
+#Vigor = pd.read_feather('Vigor_definitivo_DEF.feather')
+Vigor = pd.read_feather('VigorDEFI_Fin.feather')
+Vigor['POLIZA'] = Vigor['poliza']
+Vigor['FEMIS'] = Vigor['femis']
+Vigor['CERTIFICAD'] = Vigor['certificad']
+Vigor['SAOTRAS'] = Vigor['saotras']
+Vigor['SABAS'] = Vigor['sabas']
+Vigor['SAITP'] = Vigor['saitp']
+Vigor['PETOTAL'] = Vigor['petotal']
+Vigor['PEBAS'] = Vigor['petotal']
+Vigor['PEIPT'] = Vigor['peipt']
+Vigor['PEOTRAS'] = Vigor['peotras']
+import pandas as pd
+
+# Fecha FEMIS
+Vigor["FEMIS"] = pd.to_datetime(Vigor["femis"])
+Vigor["Anio"] = Vigor["FEMIS"].dt.year
+
+# Fecha inicio vigencia
+Vigor["INIVIG"] = pd.to_datetime(Vigor["inivig"])
+Vigor["Anio_INI"] = Vigor["INIVIG"].dt.year
+
+# Fecha fin plazo
+Vigor["FIN_PLAZO"] = pd.to_datetime(Vigor["fin_plazo"])
+Vigor["Anio_FIN"] = Vigor["FIN_PLAZO"].dt.year
+
+# Variables auxiliares
+ini = Vigor["INIVIG"]
+fin = Vigor["FIN_PLAZO"]
+
+# Fecha crédito
+Vigor["INIVIG1"] = pd.to_datetime(Vigor["fecha_credito"])
+Vigor["Anio_INI1"] = Vigor["INIVIG1"].dt.year
+
+# Fin de vigencia
+Vigor["FIN_PLAZO1"] = pd.to_datetime(Vigor["fin_de_vig"])
+Vigor["Anio_FIN1"] = Vigor["FIN_PLAZO1"].dt.year
+Vigor["INIVIG2"] = pd.to_datetime(Vigor["fecha_ini_r"])
+Vigor["Anio_INI2"] = Vigor["INIVIG2"].dt.year
+Vigor["FIN_PLAZO2"] = pd.to_datetime(Vigor["Fecha_FIN_R"])
+Vigor["Anio_FIN2"] = Vigor["FIN_PLAZO1"].dt.year
+```
+
+Método para filtrar los siniestros por plazo
+
+```{python eval=FALSE, include=FALSE}
+import pandas as pd
+#resultado = texto.split("-", 1)[1]
+# Crear el equivalente a cbind(...)
+def Filtrado_Siniestros(siniestrosF1,j):
+ B = siniestrosF1.copy()
+
+ B['FEC_VIG_DESDE'] = pd.to_datetime(B['FEC_VIG_DESDE'])
+ B['FEC_REGISTRO'] = pd.to_datetime(B['FEC_REGISTRO'])
+ B['FEC_VIG_HASTA'] = pd.to_datetime(B['FEC_VIG_HASTA'])
+
+ B['Periodo_origen'] = pd.to_datetime(B['FEC_VIG_DESDE'].dt.strftime('%m-%Y'),format='%m-%Y')
+ B['Periodo_desarrollo'] = pd.to_datetime(B['FEC_REGISTRO'].dt.strftime('%m-%Y'),format='%m-%Y')
+
+ B['Anio_INI'] = B['FEC_VIG_DESDE'].dt.year
+ B['Anio_REGIS'] = B['FEC_REGISTRO'].dt.year
+ B['Anio_FIN'] = B['FEC_VIG_HASTA'].dt.year
+ # Variables auxiliares
+ ini = B['FEC_VIG_DESDE']
+ fin = B['FEC_VIG_HASTA']
+ 
+ B['meses'] = (
+    (fin.dt.year - ini.dt.year) * 12 +
+    (fin.dt.month - ini.dt.month) -
+    (fin.dt.day < ini.dt.day)
+ )
+ 
+ B['Clase'] = np.where(
+    B['meses'] >= 30, 30,
+    np.where(
+        (B['meses'] >= 24) & (B['meses'] < 30), 24,
+        np.where(
+            (B['meses'] >= 18) & (B['meses'] < 24), 18,
+            np.where(
+                (B['meses'] >= 12) & (B['meses'] < 18), 12,
+                6
+            )
+        )
+    )
+ )
+ C = B[B['COBERTURA'] == "DESEMPLEO INVOLUNTARIO"]
+ C = B[B['Clase']==j]
+ return C
+
+siniestrosF = Filtrado_Siniestros(siniestrosF1,30)
+siniestrosF1
+siniestrosF
+```
+
+
+Método Triangulo que genera el acomodo siniestros origen y desarrollo
+```{python}
+import pandas as pd
+#####Construir Base para triángulo
+def Triangulo(siniestrosF):
+ B = siniestrosF.copy()
+
+ B['FEC_VIG_DESDE'] = pd.to_datetime(B['FEC_VIG_DESDE'])
+ B['FEC_REGISTRO'] = pd.to_datetime(B['FEC_REGISTRO'])
+ B['FEC_VIG_HASTA'] = pd.to_datetime(B['FEC_VIG_HASTA'])
+
+ B['Periodo_origen'] = pd.to_datetime(B['FEC_VIG_DESDE'].dt.strftime('%m-%Y'),format='%m-%Y')
+ B['Periodo_desarrollo'] = pd.to_datetime(B['FEC_REGISTRO'].dt.strftime('%m-%Y'),format='%m-%Y')
+
+ B['Anio_INI'] = B['FEC_VIG_DESDE'].dt.year
+ B['Anio_REGIS'] = B['FEC_REGISTRO'].dt.year
+ B['Anio_FIN'] = B['FEC_VIG_HASTA'].dt.year
+ # Variables auxiliares
+ ini = B['FEC_VIG_DESDE']
+ fin = B['FEC_VIG_HASTA']
+ 
+ B['meses'] = (
+    (fin.dt.year - ini.dt.year) * 12 +
+    (fin.dt.month - ini.dt.month) -
+    (fin.dt.day < ini.dt.day)
+ )
+ 
+# B['Clase'] = np.where(
+ #   B['meses'] >= 30, 30,
+  #  np.where(
+   #     (B['meses'] >= 24) & (B['meses'] < 30), 24,
+    #    np.where(
+     #       (B['meses'] >= 18) & (B['meses'] < 24), 18,
+      #      np.where(
+       #         (B['meses'] >= 12) & (B['meses'] < 18), 12,
+        #        6
+         #   )
+        #)
+    #)
+ #)
+ C = B[B['COBERTURA'] == "DESEMPLEO INVOLUNTARIO"]
+ 
+ Triangulo = (
+    C
+    .groupby(['Periodo_origen', 'Periodo_desarrollo','COBERTURA'], as_index=False)
+    .agg(
+        Suma=('IMPORTE_PAGADO', 'sum'),
+        Numero=('NRO_STRO', 'nunique'),
+        NumT = ('NRO_STRO', 'size')
+    )
+    .drop_duplicates()
+ )
+ return Triangulo
+```
+
+Método para prima originada mensual
+```{python}
+import pandas as pd
+def Primas(Vigor):
+ B1 = Vigor.copy()
+ B1['INIVIG1'] = pd.to_datetime(B1['fecha_credito'])
+ B1['FEMIS'] = pd.to_datetime(B1['FEMIS'])
+ B1['FIN_PLAZO1'] = pd.to_datetime(B1['fin_de_vig'])
+
+ B1['Periodo_Origen'] = pd.to_datetime(B1['INIVIG1'].dt.strftime('%m-%Y'),format='%m-%Y')
+
+
+ B1['Anio_origen'] = B1['Periodo_Origen'].dt.year
+
+ # Variables auxiliares
+ ini = B1['INIVIG1']
+ fin = B1['FIN_PLAZO1']
+
+ B1['meses'] = (
+    (fin.dt.year - ini.dt.year) * 12 +
+    (fin.dt.month - ini.dt.month) -
+    (fin.dt.day < ini.dt.day)
+ )
+ B1.columns
+
+
+
+# B1['Clase'] = np.where(
+ #   B1['meses'] >= 30, 30,
+  #  np.where(
+   #     (B1['meses'] >= 24) & (B1['meses'] < 30), 24,
+    #    np.where(
+     #       (B1['meses'] >= 18) & (B1['meses'] < 24), 18,
+      #      np.where(
+       #         (B1['meses'] >= 12) & (B1['meses'] < 18), 12,
+        #        6
+         #   )
+        #)
+    #)
+ #)
+ C1 = B1[B1['PEOTRAS'] != 0]
+ Primas = (
+    C1
+    .groupby(['Periodo_Origen'], as_index=False)
+    .agg(
+        Suma=('PEOTRAS', 'sum'),
+        Numero=('POLIZA', lambda x: 
+                len(set(zip(x, C1.loc[x.index, 'CERTIFICAD'])))),
+        NumT=('POLIZA', 'size')
+    )
+    .drop_duplicates()
+ )
+ return Primas
+```
+
+Método siniestralidad cruzar prima y siniestros
+```{python}
+
+def Siniestralidad(X, Y):
+    Res = X.merge(
+        Y,
+        left_on='Periodo_origen',
+        right_on='Periodo_Origen',
+        how='left'
+    )
+    
+    # Evitar división por cero o NaN
+    Res['Factor_S'] = np.where(
+        (Res['Suma_y'].notnull()) & (Res['Suma_y'] != 0),
+        Res['Suma_x'] / Res['Suma_y'],
+        np.nan
+    )
+    
+    return Res
+
+```
+Insumo Res a partir de Primas, Triangulo y Sinietsralidad(X,Y)
+```{python}
+Triangulo = Triangulo(siniestrosF)
+sum(Triangulo['Suma'])
+#/sum(Primas['Suma'])
+#sum(Primas['Suma'])
+Primas = Primas(Vigor)
+
+X = Triangulo
+Y = Primas
+Res = Siniestralidad(X,Y)
+Res['Periodo_origen']
+Res[['Periodo_origen','Periodo_desarrollo','Suma_x','Suma_y']]
+Res['Suma_x'].sum()
+#Res.to_csv('C:/Users/agarciadeleon/Phyton/Resultado_XY.csv')
+```
+
+Factores de siniestralidad
+```{python}
+#Metodo para calcular el factor de siniestralidad del año
+def Factor_S_Demo(anio_origen, Res,tama):
+
+    KJ = Res[Res['Periodo_origen'] == anio_origen]
+    fecha_corte = KJ['Periodo_desarrollo'].max()
+
+    Res1 = Res[
+        (Res['Periodo_desarrollo'] <= fecha_corte) &
+        (Res['Periodo_desarrollo'] >= anio_origen) &
+        (Res['Periodo_origen'] >= anio_origen) &
+        (Res['Periodo_origen'] <= fecha_corte)
+    ].copy()
+
+    Res1['Periodo_origen'] = pd.to_datetime(Res1['Periodo_origen'])
+    Res1['Periodo_desarrollo'] = pd.to_datetime(Res1['Periodo_desarrollo'])
+
+    Res1['Factor_S'] = Res1['Suma_x'] / Res1['Suma_y']
+
+    Res1['dev'] = (
+        (Res1['Periodo_desarrollo'].dt.year - Res1['Periodo_origen'].dt.year) * 12 +
+        (Res1['Periodo_desarrollo'].dt.month - Res1['Periodo_origen'].dt.month)
+    )
+
+    triangulo = Res1.pivot_table(
+        index='Periodo_origen',
+        columns='dev',
+        values='Factor_S',
+        aggfunc='sum'
+    ).fillna(0)
+
+    triangulo = triangulo.reindex(
+        columns=range(0, int(triangulo.columns.max()) + 1),
+        fill_value=0
+    )
+
+    meses = triangulo.shape[1]
+
+    
+    def simula(k, tam):
+        df = triangulo.to_numpy()
+
+        den = df.sum(axis=0)
+        den = np.where(den == 0, 1, den)
+
+        p = (df / den)[:, k]
+        mask = p != 0
+        p_filtrado = p[mask]
+
+        if p_filtrado.size == 0:
+            p_filtrado = np.array([1])
+
+        x = df[:, k]
+        x_filtrado = x[x != 0]
+
+        if x_filtrado.size == 0:
+            x_filtrado = np.array([0])
+
+        return np.random.choice(x_filtrado, size=tam, p=p_filtrado)
+
+    
+    def replace_zeros_with_D(df, D, u):
+        df = df.copy().astype(float)
+
+        for i in range(len(df)):
+            zeros_idx = np.where(df.iloc[i] == 0)[0]
+
+            for j, col_idx in enumerate(zeros_idx):
+                if j < len(D) and u < len(D[j]):
+                    df.iat[i, col_idx] = D[col_idx][u]
+
+        return df
+
+    
+    ty = []
+    K1 = []
+    
+    l = [simula(k, tama) for k in range(meses)]
+
+    for u in range(tama):
+
+        X = replace_zeros_with_D(triangulo, l, u)
+
+        Z = X.mean(axis=1)
+
+        ty.append(Z.mean())
+    
+        K1.append((Z.mean(), X.mean(axis=1), X, triangulo))
+        
+    
+    Z_final = np.mean(ty)
+
+    K1.append(("Z_final", Z_final))
+
+    return K1
+```
+
+Impresión de factores de siniestralidad (no correr a menos que se desee visualizar)
+```{python eval=FALSE, include=FALSE}
+#QW = tabla123.sum(axis = 0)
+#QW.sum()
+#Impresion de valores
+import pandas as pd
+anio_origen =pd.to_datetime('2025-01-01 00:00:00')
+tam = 600
+Z_df = Factor_S_Demo(anio_origen, Res,tam)
+
+# Crear un writer (libro de Excel)
+with pd.ExcelWriter("Factores_Siniestralidad_DEFI_5.xlsx", engine="openpyxl") as writer:
+  
+    for k in range(tam):
+
+        df_num = pd.DataFrame([Z_df[k][0]], columns=["valor"])
+        df_m1 = pd.DataFrame(Z_df[k][1])
+        df_m2 = pd.DataFrame(Z_df[k][2])
+        df_m3 = pd.DataFrame(Z_df[k][3])
+
+        hoja = "Hoja_" + str(k)
+
+        df_num.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+
+        df_m1.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=3,
+            index=False
+        )
+        
+        df_m2.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=27,
+            index=False
+        )
+        
+        df_m3.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=55,
+            index=False
+        )
+        
+    df_num1 = pd.DataFrame([Z_df[tam][1]], columns=["valor"])
+    df_num1.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=80,
+            index=False
+        )
+```
+
+\section{Probabilidades de transición}
+Proabilidades de transición
+
+Nuevo metodo probabilidades de transicion
+
+```{python eval=FALSE, include=FALSE}
+#Contar la pólizas que nunca se han siniestrado
+def Nunca_sin(Vigor, siniestrosF):
+
+    B1 = Vigor.copy()
+    B1["POLIZA"] = B1["POLIZA"].astype(str)
+    B1["Key"] = B1["POLIZA"].str.replace(r"^\d+-", "", regex=True)
+
+    A = siniestrosF.loc[
+        siniestrosF["COBERTURA"] == "DESEMPLEO INVOLUNTARIO"
+    ].copy()
+
+    A["POLIZA"] = A["POLIZA"].astype(str)
+    A["POLIZA_clean"] = A["POLIZA"]
+    #A["POLIZA_clean"] = A["POLIZA"].str.replace(r"^\d+-", "", regex=True)
+
+    A1 = (
+        A.groupby(["CERTIFICADO", "POLIZA_clean"], as_index=False)["IMPORTE_PAGADO"]
+        .sum()
+        .rename(columns={
+            "IMPORTE_PAGADO": "SUMA_A",
+            "POLIZA_clean": "POLIZA"
+        })
+    )
+
+    C1_resultado = B1.merge(
+        A1,
+        how="left",
+        left_on=["CERTIFICAD", "Key"],
+        right_on=["CERTIFICADO", "POLIZA"],
+    )
+
+    # 
+    distintos = C1_resultado[C1_resultado['SUMA_A'].isna()]
+
+    return len(distintos)
+  #g = Nunca_sin(Vigor, siniestrosF)
+```
+
+
+```{python}
+import pandas as pd
+import numpy as np
+def Probabilidad(Vigor, siniestrosF, indicador_anio_origen):
+    B = siniestrosF
+    B = B[B['COBERTURA'] == "DESEMPLEO INVOLUNTARIO"]
+    df_result = B.sort_values(["NRO_REPORTE", "FEC_PAGO"]).copy()
+
+    # Agrupación
+    g = df_result.groupby("NRO_REPORTE")
+
+    # Fecha anterior
+    df_result["fecha_ant"] = g["FEC_PAGO"].shift(1)
+
+    # Índice dentro del grupo
+    df_result["row_num"] = g.cumcount() + 1
+
+    # Antecedente
+    df_result["antecedente"] = df_result["row_num"] - 1
+    #df_result["antecedente"] = df_result["antecedente"].clip(upper=7)
+
+    # Cálculo de meses
+    def diff_months(start, end):
+        return (end.dt.year - start.dt.year) * 12 + (end.dt.month - start.dt.month)
+
+    # Conversión de fechas
+    df_result["FEC_PAGO"] = pd.to_datetime(df_result["FEC_PAGO"])
+    df_result["FEC_VIG_DESDE"] = pd.to_datetime(df_result["FEC_VIG_DESDE"])
+    df_result["fecha_ant"] = pd.to_datetime(df_result["fecha_ant"])
+
+    # Tiempo
+    df_result["tiempo"] = diff_months(df_result["fecha_ant"], df_result["FEC_PAGO"])
+
+    # Ajuste para el primer registro
+    mask = df_result["row_num"] == 1
+    df_result.loc[mask, "tiempo"] = diff_months(
+        df_result.loc[mask, "FEC_VIG_DESDE"],
+        df_result.loc[mask, "FEC_PAGO"]
+    )
+
+    # Eliminar columna auxiliar
+    df_result.drop(columns=["row_num"], inplace=True)
+
+    # =======================
+    # TABLA DE FRECUENCIAS
+    # =======================
+    tabla123 = df_result.pivot_table(
+        index='tiempo',
+        columns='antecedente',
+        aggfunc='size',
+        fill_value=0
+    )
+    indice = tabla123.index.max()/12
+    tabla_sin7 = tabla123.drop(columns=7, errors='ignore')
+    #tabla_sin7['restante'] = len(Vigor) - tabla123.sum(axis=1)
+
+    # Normalización por fila
+    #tabla_sin7 = tabla_sin7.div(tabla_sin7.sum(axis=1), axis=0)
+    tabla_sin7 = tabla_sin7.sum(axis=0)/(indice* len(B) )
+    media_columnas = tabla_sin7
+    # Media por columnas
+    #media_columnas = tabla_sin7.mean(axis=0)
+
+    # =======================
+    # MATRIZ DE TRANSICIÓN
+    # =======================
+    a = np.zeros((7, 7))
+
+    p_0 = media_columnas.get(0, 0)
+    p_1 = media_columnas.get(1, 0)
+    p_2 = media_columnas.get(2, 0)
+    p_3 = media_columnas.get(3, 0)
+    p_4 = media_columnas.get(4, 0)
+    p_5 = media_columnas.get(5, 0)
+
+    #if p_0 > 0:
+     #   a[0, 1] = p_1 / p_0
+      #  a[0, 0] = 1 - a[0, 1]
+
+    #if p_1 > 0:
+     #   a[1, 2] = p_2 / p_1
+      #  a[1, 1] = 1 - a[1, 2]
+
+    #if p_2 > 0:
+     #   a[2, 3] = p_3 / p_2
+      #  a[2, 2] = 1 - a[2, 3]
+
+    #if p_3 > 0:
+     #   a[3, 4] = p_4 / p_3
+      #  a[3, 3] = 1 - a[3, 4]
+
+    #if p_4 > 0:
+     #   a[4, 5] = p_5 / p_4
+      #  a[4, 4] = 1 - a[4, 5]
+
+    #if p_5 > 0:
+     #   a[5, 6] = p_6 / p_5
+      #  a[5, 5] = 1 - a[5, 6]
+
+    # Estado absorbente
+    a[0,1] = p_0
+    a[0,0] =1-a[0,1]
+    a[1,2] = p_1
+    a[1,1] =1-a[1,2]
+    a[2,3] = p_2
+    a[2,2] =1-a[2,3]
+    a[3,4] = p_3
+    a[3,3] =1-a[3,4]
+    a[4,5] = p_4
+    a[4,4] =1-a[4,5]
+    a[5,6] = p_5
+    a[5,5] =1-a[5,6]
+    a[6, 6] = 1
+
+    # =======================
+    # POTENCIA DE MATRIZ
+    # =======================
+    n = indicador_anio_origen
+    a1 = np.linalg.matrix_power(a, n)
+
+    # Ajuste de matriz (ojo aquí)
+    matriz = np.delete(a1, 0, axis=1)
+    matriz = np.delete(matriz, 6, axis=0)
+
+    # =======================
+    # VECTOR
+    # =======================
+    #Vec = np.array([p_0, p_1, p_2, p_3, p_4, p_5])
+    Vec = np.array([1, 0, 0, 0, 0, 0])
+    # Multiplicación por fila
+    matriz = matriz * Vec[:, None]
+
+    # Resultado final
+    resul = matriz.sum()
+
+    # Output
+    K234 = []
+    K234.append(resul)
+    K234.append(matriz)
+    K234.append(a1)
+    K234.append(a)
+    K234.append(Vec)
+
+    return K234
+M1 = Probabilidad(Vigor, siniestrosF, 12)[0]
+Probabilidad(Vigor, siniestrosF, 0)[0]
+Probabilidad(Vigor, siniestrosF, 12)[0]
+Probabilidad(Vigor, siniestrosF, 24)[0]
+Probabilidad(Vigor, siniestrosF, 36)[0]
+Probabilidad(Vigor, siniestrosF, 48)[0]
+Probabilidad(Vigor, siniestrosF, 60)[0]
+Probabilidad(Vigor, siniestrosF, 72)[0]
+
+```
+
+PRUEBAS NO CORRER
+```{python eval=FALSE, include=FALSE}
+import pandas as pd
+import numpy as np
+# Ordenar
+#siniestrosF=siniestrosF[siniestrosF[]]
+#siniestrosF.columns
+tabla123 = df_result.pivot_table(
+    index='tiempo',
+    columns='antecedente',
+    aggfunc='size',
+    fill_value=0
+)
+tabla_sin7 = tabla123.drop(columns=7)
+#diff = tabla_sin7.diff().fillna(0)
+#diff = diff.abs()
+tabla_sin7 = tabla_sin7.div(tabla_sin7.sum(axis=1), axis=0)
+media_columnas = tabla_sin7.mean(axis=0)
+print(media_columnas)
+def Probabilidad1(Vigor, siniestrosF, indicador_anio_origen):
+ df_result = siniestrosF.sort_values(["ASEGURADO", "FEC_PAGO"]).copy()
+
+ # Agrupación
+ g = df_result.groupby("ASEGURADO")
+
+ # Fecha anterior
+ df_result["fecha_ant"] = g["FEC_PAGO"].shift(1)
+
+ # Índice dentro del grupo
+ df_result["row_num"] = g.cumcount() + 1
+ 
+ # Antecedente
+ df_result["antecedente"] = df_result["row_num"] - 1
+ df_result["antecedente"] = df_result["antecedente"].clip(upper=7)
+ #df_result["antecedente"].unique()
+ # Cálculo de meses
+ def diff_months(start, end):
+    return (end.dt.year - start.dt.year) * 12 + (end.dt.month - start.dt.month)
+
+
+ df_result["FEC_PAGO"] = pd.to_datetime(df_result["FEC_PAGO"])
+ df_result["FEC_VIG_DESDE"] = pd.to_datetime(df_result["FEC_VIG_DESDE"])
+ df_result["fecha_ant"] = pd.to_datetime(df_result["fecha_ant"])
+
+ # Tiempo
+ df_result["tiempo"] = diff_months(df_result["fecha_ant"], df_result["FEC_PAGO"])
+
+ # Ajuste para el primer registro de cada grupo
+ mask = df_result["row_num"] == 1
+ df_result.loc[mask, "tiempo"] = diff_months(
+    df_result.loc[mask, "FEC_VIG_DESDE"],
+    df_result.loc[mask, "FEC_PAGO"]
+ )
+
+ # Opcional: eliminar columna auxiliar
+ df_result.drop(columns=["row_num"], inplace=True)
+ 
+ Markov = df_result
+
+ def frecuencia_S(Vigor, Markov, indicador_anio_origen):
+    
+    # Conteos base
+    p_counts = Markov["antecedente"].value_counts().sort_index()
+    
+    # Asegurar índices 0 a 5
+    for i in range(6):
+        if i not in p_counts:
+            p_counts[i] = 0
+    
+    p_counts = p_counts.sort_index()
+    
+    p_0 = len(Vigor[["POLIZA", "CERTIFICAD"]].drop_duplicates())
+    
+    # Extraer valores
+    p_1 = p_counts[0]
+    p_2 = p_counts[1]
+    p_3 = p_counts[2]
+    p_4 = p_counts[3]
+    p_5 = p_counts[4]
+    p_6 = p_counts[5]
+    
+    # Probabilidades
+    P1 = p_1 / p_0
+    P2 = p_2 / p_0
+    P3 = p_3 / p_0
+    P4 = p_4 / p_0
+    P5 = p_5 / p_0
+    P6 = p_6 / p_0
+    P0 = 1 - (P1 + P2 + P3 + P4 + P5 + P6)
+    
+    # Matriz 7x7
+    a = np.zeros((7, 7))
+    
+    # Transiciones
+    if p_1 > 0:
+        a[0, 1] = p_1 / p_0
+    
+    a[0, 0] = 1 - a[0, 1]
+    
+    if p_1 > 0:
+        a[1, 2] = p_2 / p_1
+    a[1, 1] = 1 - a[1, 2]
+    
+    if p_2 > 0:
+        a[2, 3] = p_3 / p_2
+    a[2, 2] = 1 - a[2, 3]
+    
+    if p_3 > 0:
+        a[3, 4] = p_4 / p_3
+    a[3, 3] = 1 - a[3, 4]
+    
+    if p_4 > 0:
+        a[4, 5] = p_5 / p_4
+    a[4, 4] = 1 - a[4, 5]
+    
+    if p_5 > 0:
+        a[5, 6] = p_6 / p_5
+    a[5, 5] = 1 - a[5, 6]
+    a
+    # Estado absorbente
+    a[6, 6] = 1
+    # Eliminar primera columna
+    n = indicador_anio_origen 
+    a1 = np.linalg.matrix_power(a, n)
+    #matriz = a1[:, 1:]
+    #matriz = np.delete(a1, 6, axis=1)
+    #matriz =np.delete(a1, [0, 6], axis=1)
+    matriz =np.delete(a1, 0, axis=1)
+    matriz =np.delete(a1, 6, axis=0)
+    
+    matriz.shape
+    n = indicador_anio_origen
+    # Vector de probabilidades iniciales
+    Vec = np.array([P0, P1, P2, P3, P4, P5])
+    #Vec = np.array([P0, P1, P2, P3, P4, P5, P6])
+    
+    # Multiplicación por fila
+    matriz = matriz * Vec[:, None]
+    
+    # Resultado final
+    resul = matriz.sum()
+    K234 = []
+    K234.append(resul)
+    K234.append(matriz)
+    K234.append(a1)
+    K234.append(a)
+    K234.append(Vec)
+    return K234
+  
+ return frecuencia_S(Vigor, Markov, indicador_anio_origen)
+Probabilidad(Vigor, siniestrosF, 36)[0]
+```
+
+Impresión de probabilidades de transición
+```{python eval=FALSE, include=FALSE}
+siniestrosF.columns
+indicador_anio_origen = 3
+ZX = Probabilidad(Vigor, siniestrosF, indicador_anio_origen)
+ df_num = pd.DataFrame([ZX[0]], columns=["valor"])
+ df_m1 = pd.DataFrame(ZX[1])
+ df_m2 = pd.DataFrame(ZX[2])
+ df_m3 = pd.DataFrame(ZX[3])
+  df_m4 = pd.DataFrame(ZX[4])
+ df_m5 = pd.DataFrame([indicador_anio_origen],columns=["valor"])
+# juntar todo (vertical)
+
+df_total = pd.concat([
+    df_num,
+    pd.DataFrame([[]]),  # fila vacía
+    df_m1,
+    pd.DataFrame([[]]),  # fila vacía
+    df_m2,
+    pd.DataFrame([[]]),
+    df_m3,
+    pd.DataFrame([[]]),
+    df_m4,
+    pd.DataFrame([[]]),
+    df_m5
+], ignore_index=True)
+
+
+df_total.to_csv("Transicion_DEF.csv", index=False)
+```
+
+Valor presente
+```{python}
+import numpy as np
+import math as m
+def VP(TLR1, fecha,z,w):
+    K = TLR1.loc[TLR1["Mes"] == fecha, z+1].values[0]
+    er = 1 + K
+    er = 1 / er
+    er = er ** w
+    return er
+#VP(TLR1, fecha,1,1)
+```
+
+Métodos para calcular serie de factores de siniestralidad
+```{python eval=FALSE, include=FALSE}
+tam = 600
+def Factores_siniestralidad(Resumen,tama,Res,cota,anio_origen):
+   n4 = Resumen['duracion_remanente'].max()
+   n4 = n4.astype(int)
+   #t1 = n4//12
+   #t2 = n4%12
+   #if t2==0:
+    # m4=t1 
+   #else: 
+    # m4 = t1+1
+   v_values = np.arange(0, n4 + 1)
+   #v_values[[-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11]] = 21
+   G  = [anio_origen + pd.DateOffset(years=d2) for d2 in v_values]
+   G = [min(G[k],cota) for k in v_values]
+   G = [Factor_S_Demo(G[k], Res, tam)[-1][1] for k in range(len(G))]
+   return G
+ #Probabilidades(Vigor, siniestrosF, Resumen)
+```
+
+Métodos para calcular serie de probabilidades
+```{python}
+def Probabilidades(Vigor, siniestrosF, MAX_DUR_REM):
+  
+    n4 = MAX_DUR_REM#Resumen['duracion_remanente'].max()
+
+    v_values = np.arange(0, n4 + 1)
+
+    G = [Probabilidad(Vigor, siniestrosF, int(k))[0] for k in v_values]
+
+    return G
+```
+
+\section{Calcular Reserva}
+
+Prima_no devengada
+```{python}
+from datetime import date
+#K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+def P_No_devengada(K,fecha):
+ INI = pd.to_datetime(K["INIVIG1"], errors="coerce")
+ FIN = pd.to_datetime(K["FIN_PLAZO1"], errors="coerce")
+ DUR = K["meses"]
+ Duracion_remanente = K["duracion_remanente"]
+ PE = K["PEOTRAS"]
+ n = len(DUR)
+ PND = np.empty(n)
+ for i in range(n):
+  dur = DUR[i]
+  x1 = PE[i]
+  dur_re = Duracion_remanente[i]
+  PND[i] = x1*dur_re/dur
+ return(PND)
+```
+
+Prima Anual
+```{python eval=FALSE, include=FALSE}
+import numpy as np
+import numpy as np
+import pandas as pd
+
+def prima_anual(K, TLR1, fecha):
+
+    PE = K["PEOTRAS"].to_numpy()
+    DUR = K["DURACION"].to_numpy()
+    n = len(DUR)
+
+    # Obtener TLR solo 1 vez
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    TLR = fila.drop(columns=["Mes"]).to_numpy()[0]
+
+    
+    max_w = int((DUR.max() // 12)+1)
+
+    
+    VP_vals = np.array([VP(TLR1, fecha, w, w) for w in range(max_w)])
+
+    PAN = np.empty(n) 
+
+    for i in range(n):
+
+        dur = DUR[i]
+        x1 = PE[i]
+
+        x2 = dur // 12
+        x21 = dur % 12
+
+        xs = x2 if x21 == 0 else 1 + x2
+        xs_idx = int(xs - 1)
+
+        
+        suma = VP_vals[:xs_idx + 1].sum()
+      
+        tasa_ultimo = TLR[xs_idx]
+        ajuste = VP_vals[xs_idx] / ((1 + tasa_ultimo) ** ((x21) / 12))
+
+        suma = suma - VP_vals[xs_idx] + ajuste
+
+        PAN[i] = x1 / suma
+
+    return pd.DataFrame({"PAN": PAN})
+```
+Fecha valor presente
+```{python eval=FALSE, include=FALSE}
+import numpy as np
+import pandas as pd
+
+def VP(K, TLR1, fecha, DUR_RE):
+    # Filtrar la fila correspondiente al mes
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    
+    if fila.empty:
+        raise ValueError("La fecha no existe en TLR1")
+    
+    TLR = fila.drop(columns=["Mes"]).to_numpy()[0]
+    
+    # Convertir fechas
+    INI = pd.to_datetime(K["INIVIG1"], errors="coerce")
+    FIN = pd.to_datetime(K["FIN_PLAZO1"], errors="coerce")
+    
+    # Calcular años completos
+    Anios = FIN.dt.year - INI.dt.year
+    mask = (FIN.dt.month < INI.dt.month) | (
+        (FIN.dt.month == INI.dt.month) & (FIN.dt.day < INI.dt.day)
+    )
+    Anios = Anios - mask.astype(int)
+    
+    n = len(K)
+    VP = np.empty(n)
+    
+    for i in range(n):
+        A = int(Anios.iloc[i])
+        dur_re = DUR_RE[i] / 12
+        
+        tasa = TLR[A]
+        factor = 1 / (1 + tasa)
+        VP[i] = factor ** dur_re
+    
+    return VP
+```
+
+
+Preparar datos
+```{python}
+import pandas as pd
+import numpy as np
+#K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K[K["duracion_remanente"]<0]
+def Preparar_datos(Vigor, corte ,TLR1,fecha) :
+    B = Vigor.copy()
+    date_cols = [
+    "FEMIS", "INIVIG", "FIN_PLAZO",
+    "fecha_credito", "fin_de_vig",
+    "fecha_ini_r", "Fecha_FIN_R"
+    ]
+    # Normalizar TODAS las fechas
+    for col in date_cols:
+     B[col] = pd.to_datetime(B[col], errors="coerce")
+     try:
+        B[col] = B[col].dt.tz_localize(None)
+     except:
+        pass
+
+    corte = pd.to_datetime(corte).tz_localize(None)
+    # Reestructura
+    B["Reestructura"] = np.where(B["Fecha_FIN_R"].notna(), "R", "NR")
+
+    # Conversión de fechas
+    B["FEMIS"] = pd.to_datetime(B["FEMIS"])
+    B["INIVIG"] = pd.to_datetime(B["INIVIG"])
+    B["FIN_PLAZO"] = pd.to_datetime(B["FIN_PLAZO"])
+
+    # Años
+    B["Anio"] = B["FEMIS"].dt.year
+    B["Anio_INI"] = B["INIVIG"].dt.year
+    B["Anio_FIN"] = B["FIN_PLAZO"].dt.year
+
+    # Nuevas fechas base
+    B["INIVIG1"] = pd.to_datetime(B["fecha_credito"])
+    B["Anio_INI1"] = B["INIVIG1"].dt.year
+    B["FIN_PLAZO1"] = pd.to_datetime(B["fin_de_vig"])
+    B["Anio_FIN1"] = B["FIN_PLAZO1"].dt.year
+
+    # Reestructuras
+    B["INIVIG2"] = pd.to_datetime(B["fecha_ini_r"])
+    B["Anio_INI2"] = B["INIVIG2"].dt.year
+    B["FIN_PLAZO2"] = pd.to_datetime(B["Fecha_FIN_R"])
+    B["Anio_FIN2"] = B["FIN_PLAZO1"].dt.year  # igual que en tu código R
+
+    # Variables auxiliares
+    ini = B["INIVIG1"]
+    fin = B["FIN_PLAZO1"]
+    ini1 = B["INIVIG1"]
+    fin1 = B["FIN_PLAZO2"]
+
+    # Función para calcular meses (equivalente a lubridate)
+    def calc_meses(ini, fin):
+        return (
+            (fin.dt.year - ini.dt.year) * 12
+            + (fin.dt.month - ini.dt.month)
+            - (fin.dt.day < ini.dt.day).astype(int)
+        )
+
+    # meses de duración
+    meses_NR = calc_meses(ini, fin)
+    meses_R = calc_meses(ini1, fin1)
+
+    B["meses"] = np.where(B["Reestructura"] == "NR", meses_NR, meses_R)
+
+    # Filtrar por corte
+    corte = pd.to_datetime(corte)
+    K = B[B["FEMIS"] <= corte].copy()
+
+    # ini = pmin(FIN_PLAZO1, corte)
+    ini = pd.Series(
+    np.minimum(K["FIN_PLAZO1"].values, corte),
+    index=K.index
+    )
+
+    fin = K["FIN_PLAZO1"]
+    fin1 = K["FIN_PLAZO2"]
+
+    # Duración remanente
+    dur_NR = (
+        (fin.dt.year - ini.dt.year) * 12
+        + (fin.dt.month - ini.dt.month)
+        - (fin.dt.day < ini.dt.day).astype(int)
+    )
+    
+    # ini = pmin(FIN_PLAZO1, corte)
+    iniR = K["FIN_PLAZO2"].fillna(corte).clip(upper=corte)
+
+    dur_R = (
+        (fin1.dt.year - iniR.dt.year) * 12
+        + (fin1.dt.month - iniR.dt.month)
+        - (fin1.dt.day < iniR.dt.day).astype(int)
+    )
+    K["duracion_remanente"] = np.where(K["Reestructura"] == "NR", dur_NR, dur_R)
+    #Ejemplo = K[K["duracion_remanente"]<0]
+    #Ejemplo[["FIN_PLAZO2"]]
+    #K["PEOTRAS"] = np.where(
+     #K["Reestructura"] == "NR",
+     #K["PEOTRAS"],
+     #(K["CUOTA"]*6)
+    #)
+
+    # fecha2
+    K["fecha2"] = np.where(K["Reestructura"] == "NR", fin, fin1)
+    K["fecha2"] = pd.to_datetime(K["fecha2"])
+    #K['prima_anual'] = prima_anual(K, TLR1, fecha)
+    K['prima_N_devengada'] = P_No_devengada(K,fecha)
+    #DUR_RE = K["duracion_remanente"]
+    #K['Factor_VP'] = VP(K, TLR1, fecha, K["duracion_remanente"])
+    return K
+```
+
+
+Calcular el resumen y la reserva
+```{python}
+import pandas as pd
+#K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K[K["duracion_remanente"]<0]
+#K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#Resumen = Generar_resumen(K, etiqueta )
+#Resumen[Resumen["duracion_remanente"]<0]
+def Generar_resumen(K,etiqueta):
+ K1 = K[K['Reestructura'] == etiqueta]
+ Resumen  = (
+    K1
+    .groupby(['meses', 'duracion_remanente','plazo','INIVIG1'], as_index=False)
+    .agg(
+        Prima=('PEOTRAS', 'sum'),
+        prima_N_devengada=('prima_N_devengada', 'sum'),
+        #prima_N_devengada=('prima_N_devengada', 'sum'),
+    )
+    .drop_duplicates()
+ )
+ Resumen['Valor_Presente'] = 0.0
+ return Resumen
+
+#Resumen = Generar_resumen(K,etiqueta)
+#TLR1
+
+import numpy as np
+#Resumen
+def Reserva(Resumen, fecha, tama, Res, anio_origen, Vigor, siniestrosF, TLR1):
+
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    TLR = fila.drop(columns=["Mes"]).values[0]
+
+    for k7 in range(len(Resumen['duracion_remanente'])):
+        if Resumen.loc[k7, 'duracion_remanente'] == 0:
+            Resumen.loc[k7, 'Valor_Presente'] = 0
+
+        else:
+            n1 = Resumen.loc[k7, 'duracion_remanente']
+            n2 = n1 // 12
+            n3 = n1 % 12
+
+            
+            n4 = n2 + 1
+
+            v_values = np.arange(0, n4, dtype=int)
+            exponentes = np.arange(0, n1, dtype=int) + 1
+            exponentes = exponentes/12
+            tasa = TLR[v_values]
+            ValPre = 1 + tasa
+            ValPre = 1 / ValPre
+            #ValPre = ValPre**exponentes
+
+            P = Resumen.loc[k7, 'prima_N_devengada']
+            P1 = P / n1
+
+            J = np.zeros(int(n1))
+            
+            for i in range( len(J) ) :
+              
+                gh = (i + 1) // 12
+                J[i] = (ValPre[gh]**exponentes[i]) * P1 * FA * Pr[int(i+1)]
+            Resu = J.sum()
+            Resumen.loc[k7, 'Valor_Presente'] = Resu
+
+    return Resumen
+
+```
+
+```{python eval=FALSE, include=FALSE}
+def Reserva(Resumen, fecha, tama, Res, anio_origen, Vigor, siniestrosF, TLR1):
+
+    print(">>> Inicio Reserva")
+    print("Fecha:", fecha)
+
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    print("Filas encontradas:", len(fila))
+
+    if fila.empty:
+        raise ValueError(f"No existe la fecha {fecha} en TLR1")
+
+    TLR = fila.drop(columns=["Mes"]).values[0]
+
+    for k7 in range(len(Resumen['duracion_remanente'])):
+        try:
+            print(f"\n--- k7 = {k7} ---")
+
+            if Resumen.loc[k7, 'duracion_remanente'] == 0:
+                Resumen.loc[k7, 'Valor_Presente'] = 0
+                continue
+
+            n1 = Resumen.loc[k7, 'duracion_remanente']
+            n2 = n1 // 12
+            n3 = n1 % 12
+
+            n4 = n2 if n3 == 0 else n2 + 1
+
+            print(f"n1={n1}, n4={n4}")
+
+            v_values = np.arange(0, n4, dtype=int)
+            exponentes = np.arange(0, n4, dtype=int) + 1
+
+            tasa = TLR[v_values]
+
+            ValPre = 1 / (1 + tasa)
+            ValPre = ValPre ** exponentes
+
+            print("len ValPre:", len(ValPre))
+
+            P = Resumen.loc[k7, 'prima_N_devengada']
+            P1 = P / n1
+
+            J = np.zeros(int(n1))
+
+            for i in range(len(J)):
+                try:
+                    gh = (i + 1) // 12
+
+                    if gh >= len(ValPre):
+                        raise IndexError(f"gh={gh} fuera de rango ValPre={len(ValPre)}")
+
+                    if i >= len(FA):
+                        raise IndexError(f"i={i} fuera de rango FA={len(FA)}")
+
+                    if (i+1) >= len(Pr):
+                        raise IndexError(f"i+1={i+1} fuera de rango Pr={len(Pr)}")
+
+                    J[i] = ValPre[gh] * P1 * FA[i] * Pr[int(i+1)]
+
+                except Exception as e:
+                    print(f"❌ ERROR en loop interno -> k7={k7}, i={i}")
+                    print(f"gh={gh}")
+                    raise
+
+            Resu = J.sum()
+            Resumen.loc[k7, 'Valor_Presente'] = Resu
+
+        except Exception as e:
+            print(f"🔥 ERROR en k7={k7}")
+            raise
+
+    print(">>> Fin Reserva")
+    return Resumen
+```
+
+
+Hasta aquí correr
+```{python}
+import pandas as pd
+import random
+estado = np.random.get_state()
+np.random.seed(123)
+anio_origen =pd.to_datetime('2025-03-01 00:00:00')
+tam = 600
+FA = Factor_S_Demo(anio_origen, Res ,tam)[-1][1]
+np.random.set_state(estado)
+FA =  1.331363
+
+import pandas as pd
+import statsmodels.api as sm
+import statsmodels.stats.api as sms
+
+
+
+
+
+
+random.seed(123) 
+#FA = Factores_siniestralidad(Resumen, tama, Res, cota, anio_origen)
+#FA = Factor_S_Demo(anio_origen, Res,tam)[-1][1]
+MAX_DUR_REM = 80
+Pr = Probabilidades(Vigor, siniestrosF, MAX_DUR_REM)
+#len(Pr)
+TLR1 = pd.read_excel("C:/Users/agarciadeleon/Phyton/Plantillas/TLR.xlsx")
+#fecha = pd.to_datetime('2025-12-31 00:00:00')
+#fecha = pd.to_datetime('2025-03-31 00:00:00')
+#fecha = pd.to_datetime('2026-05-31 00:00:00')
+#fecha = pd.to_datetime('2025-09-30 00:00:00')
+#30_sep_25
+#31-di-25
+#31-mz-26
+#31-05-26
+
+etiqueta = "NR"
+corte = pd.to_datetime('2026-05-31 00:00:00')
+fecha = pd.to_datetime('2026-05-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S1 = Reserva(Resumen,fecha,tama,Res,anio_origen,Vigor,siniestrosF,TLR1)
+S1['Valor_Presente'].sum()
+
+
+corte = pd.to_datetime('2025-12-31 00:00:00')
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S = Reserva(Resumen,fecha,tama,Res,anio_origen,Vigor,siniestrosF,TLR1)
+S['Valor_Presente'].sum()
+
+
+
+corte = pd.to_datetime('2025-03-31 00:00:00')
+fecha = pd.to_datetime('2025-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S2 = Reserva(Resumen,fecha,tama,Res,anio_origen,Vigor,siniestrosF,TLR1)
+S2['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2025-09-30 00:00:00')
+fecha = pd.to_datetime('2025-09-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S3 = Reserva(Resumen,fecha,tama,Res,anio_origen,Vigor,siniestrosF,TLR1)
+S3['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2026-03-31 00:00:00')
+fecha = pd.to_datetime('2026-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S4 = Reserva(Resumen,fecha,tama,Res,anio_origen,Vigor,siniestrosF,TLR1)
+S4['Valor_Presente'].sum()
+#Guardar factores usados
+#FA1 = FA
+#Pr1 = Pr
+```
+
+\section{Nueva aproximación}
+```{python eval=FALSE, include=FALSE}
+Vigor.columns
+#Dada nuestra base necesitamos reportar número de años póliza
+
+def prima_anual1(df, TLR1 ):
+    t = df.copy()
+    t = anios_poliza(df)
+    primas = []
+
+    for k in range(len(t)):   # ✅ fix
+        # ✅ fecha a día 01
+        fecha = pd.to_datetime(t.loc[k,'INIVIG1']).to_period('M').to_timestamp()
+
+        fila = TLR1.loc[TLR1["Mes"] == fecha]
+        
+        if fila.empty:
+            primas.append(np.nan)
+            continue
+
+        TLR = fila.drop(columns=["Mes"]).values[0]
+
+        cf = np.ones(int(t.loc[k, 'anios_poliza']))
+
+        # ✅ fix de fracción
+        if t.loc[k,'fraccion_remanente_Poliza'] != 0:
+            cf = np.append(cf, t.loc[k,'fraccion_remanente_Poliza']/12)
+
+        tasas = TLR[:len(cf)]
+
+        a = pv_flujos(cf, tasas, tipo='vencida')
+
+        pe = t.loc[k,'PEOTRAS'] / a if a > 0 else np.nan
+
+        primas.append(pe)
+
+    t['prima_anual'] = primas
+
+    return t
+etiqueta ="NR"
+df  =K
+df = Generar_resumen(K,etiqueta)
+tr = prima_anual(df, TLR1)
+    
+```
+
+```{python}
+import numpy as np
+import pandas as pd
+
+def anios_poliza(df):
+    t = df.copy()
+
+    #t['anios_poliza'] = (t['DURACION'] // 12).astype(int)
+    t['anios_poliza'] = (t['meses'] // 12).astype(int)
+    t['anios_restantes'] = (t['duracion_remanente'] // 12).astype(int)
+    t['anios_transcurridos'] = t['anios_poliza'] - t['anios_restantes']
+    t['fraccion_remanente'] = t['duracion_remanente'] % 12
+    t['fraccion_remanente_Poliza'] = t['meses'] % 12
+
+    return t
+
+import numpy as np
+
+def pv_flujos(cf, tasas, tipo='vencida'):
+    cf = np.array(cf, dtype=float)
+    tasas = np.array(tasas, dtype=float)
+
+    # factores de descuento acumulados
+    factores = np.cumprod(1 + tasas)
+
+    if tipo == 'vencida':
+        # pago al final de periodo
+        pv = np.sum(cf / factores)
+    
+    elif tipo == 'anticipada':
+        # pago al inicio → shift
+        factores = np.insert(factores[:-1], 0, 1)
+        pv = np.sum(cf / factores)
+    
+    else:
+        raise ValueError("tipo debe ser 'vencida' o 'anticipada'")
+    
+    return pv
+
+def prima_anual(df, TLR1):
+
+    t = anios_poliza(df.copy())
+
+    # normalizar fechas
+    TLR1 = TLR1.copy()
+    TLR1['Mes'] = pd.to_datetime(TLR1['Mes']).dt.to_period('M').dt.to_timestamp()
+
+    # diccionario fecha → curva
+    tlr_dict = {
+        row['Mes']: row.drop('Mes').values
+        for _, row in TLR1.iterrows()
+    }
+
+    primas = []
+
+    fechas = pd.to_datetime(t['INIVIG1']).dt.to_period('M').dt.to_timestamp().values
+
+    for k in range(len(t)):
+        
+        fecha = fechas[k]
+        TLR = tlr_dict.get(fecha)
+
+        if TLR is None:
+            primas.append(np.nan)
+            continue
+
+        n = int(t.loc[k, 'anios_poliza'])
+        fr = t.loc[k, 'fraccion_remanente_Poliza']
+
+        # 🔥 tiempos ANTICIPADOS correctos
+        if fr > 0:
+            tiempos = np.append(np.arange(0, n), (n - 1) + fr / 12)
+        else:
+            tiempos = np.arange(0, n)
+
+        cf = np.ones(len(tiempos))
+
+        tasas = TLR[:len(tiempos)]
+
+        # 🔥 descuento correcto
+        factores = (1 + tasas) ** tiempos
+        a = np.sum(cf / factores)
+
+        pe = t.loc[k, 'Prima'] / a if a > 0 else np.nan
+
+        primas.append(pe)
+
+    t['prima_anual'] = primas
+
+    return t
+
+
+```
+
+```{python}
+#Reserva_primer año
+import numpy as np
+import pandas as pd
+
+def Reserva_1anio(Resumen, FA,fecha):
+    t = Resumen.copy()
+    t = prima_anual(t, TLR1)
+    
+    fecha_ref = pd.to_datetime(fecha)
+    fecha_ini = pd.to_datetime(t['INIVIG1'])
+
+    
+    dias = (fecha_ini - fecha_ref).dt.days % 365
+    dias = (365-dias)/(365)
+
+    periodo_multi = np.where(
+        t['anios_restantes'] >= 1,
+        t['anios_restantes'] - 1,
+        0
+    )
+
+    
+    t['Reserva_anio1'] = dias * t['prima_anual'] * FA
+    t['Reserva_anio1'] = np.where(
+    t['duracion_remanente'] == 0,
+    0,
+    dias * t['prima_anual'] * FA
+    )
+
+    
+    t['d'] = dias
+    t['Periodo_Multi'] = periodo_multi
+
+    return t
+  
+  
+hy = Reserva_1anio(tr, FA, fecha)
+
+import pandas as pd
+import numpy as np
+#Resumen = Generar_resumen(K,etiqueta)
+def Reserva_Multi1(Resumen, FA, fecha, TLR1):
+
+    t = Resumen.copy()
+    t = Reserva_1anio(t, FA, fecha)
+
+    TLR1 = TLR1.copy()
+    TLR1['Mes'] = pd.to_datetime(TLR1['Mes']).dt.to_period('M').dt.to_timestamp()
+
+    tlr_dict = {
+        row['Mes']: row.drop('Mes').values
+        for _, row in TLR1.iterrows()
+    }
+
+    reserva = np.zeros(len(t))
+
+    fechas = pd.to_datetime(t['INIVIG1']).dt.to_period('M').dt.to_timestamp()
+
+    for k in range(len(t)):
+
+        if t.loc[k, 'Periodo_Multi'] == 0:
+            reserva[k] = t.loc[k, 'Reserva_anio1']
+            continue
+
+        TLR = tlr_dict.get(fechas.iloc[k])
+        if TLR is None:
+            reserva[k] = np.nan
+            continue
+
+        # 🔥 datos clave
+        n_total = int(t.loc[k, 'anios_poliza'])
+        trans = int(t.loc[k, 'anios_transcurridos'])
+        fr = t.loc[k, 'fraccion_remanente_Poliza']
+
+        # 🔥 años restantes DESPUÉS del punto de valuación
+        n_rest = n_total - trans
+
+        # 🔥 tiempos alineados
+        if fr > 0:
+          tiempos = np.append(np.arange(1, n_rest + 1), n_rest + fr/12)
+        else:
+          tiempos = np.arange(1, n_rest + 1)
+
+        cf = np.ones(len(tiempos))
+
+        # 🔥 evitar desbordamiento de curva
+        m = min(len(tiempos), len(TLR) - trans)
+
+        tiempos = tiempos[:m]
+        cf = cf[:m]
+
+        tasas = TLR[trans : trans + m]
+
+        # 🔥 descuento
+        factores = (1 / (1 + tasas)) ** tiempos
+
+        vp = np.sum(cf * factores)
+
+        
+        # 🔥 calcular s
+        
+        dias = t.loc[k, 'd']   # necesitas esta columna
+        s = (365 - dias) / 365
+        # 🔥 ajuste tempora
+        tasa_0 = tasas[0]
+        
+        ajuste = (1 + tasa_0) ** s
+        vp_ajustado = vp * ajuste
+        reserva[k] = vp_ajustado * t.loc[k, 'prima_anual']
+
+
+    t['reserva'] = reserva
+
+    return t
+      
+
+```
+
+
+```{python}
+k=3975
+def Reserva_Multi(Resumen, FA, fecha, TLR1) :
+
+    t = Resumen.copy()
+    t = Reserva_1anio(t, FA, fecha)
+
+    # Normalizar fechas
+    TLR1 = TLR1.copy()
+    TLR1['Mes'] = pd.to_datetime(TLR1['Mes']).dt.to_period('M').dt.to_timestamp()
+
+    tlr_dict = {
+        row['Mes']: row.drop('Mes').values
+        for _, row in TLR1.iterrows()
+    }
+
+    reserva = np.zeros(len(t))
+    fechas = pd.to_datetime(t['INIVIG1']).dt.to_period('M').dt.to_timestamp()
+    for k in range(len(t)):
+
+        if t.loc[k, 'Periodo_Multi'] == 0:
+            reserva[k] = 0#t.loc[k, 'Reserva_anio1']
+            continue
+
+        TLR = tlr_dict.get(fechas.iloc[k])
+        if TLR is None:
+            reserva[k] = np.nan
+            continue
+
+        # 🔥 DATA CORRECTA
+        n = int(t.loc[k, 'Periodo_Multi'])   # SOLO multianual
+        trans = int(t.loc[k, 'anios_transcurridos'])
+        t.loc[k,:]
+        #t.loc[k,'anios_poliza'] - t.loc[k,'anios_restantes']
+        fr = t.loc[k, 'fraccion_remanente_Poliza']
+        if n <= 0 or (trans >= n and fr == 0):
+          reserva[k] = 0
+          continue
+
+
+        # =========================
+        # 🔥 TIEMPOS CORRECTOS
+        # =========================
+        # empieza en t+1 ⇒ tiempo = 1
+        if fr > 0:
+            tiempos = np.append(np.arange(1, n + 1), n + fr/12)
+        else:
+            tiempos = np.arange(1, n + 1)
+
+        cf = np.ones(len(tiempos))
+
+        # =========================
+        # 🔥 TASAS ALINEADAS
+        # =========================
+        # empezamos en trans (eso corresponde a t)
+        tasas = TLR[trans : trans + len(tiempos)]
+
+        # evitar out-of-bounds
+        m = min(len(tiempos), len(tasas))
+        tiempos = tiempos[:m]
+        cf = cf[:m]
+        tasas = tasas[:m]
+
+        # =========================
+        # 🔥 DESCUENTO CORRECTO
+        # =========================
+        factores = (1 / (1 + tasas)) ** tiempos
+        vp = np.sum(cf * factores)
+
+        # =========================
+        # 🔥 AJUSTE t-s
+        # =========================
+        dias = t.loc[k, 'd']
+        s = (365 - dias) / 365
+
+        if len(tasas) == 0:
+          print(
+          f"k={k}, "
+          f"fecha={fechas.iloc[k]}, "
+          f"trans={trans}, "
+          f"len(TLR)={len(TLR)}, "
+          f"Periodo_Multi={n}"
+          )
+          reserva[k] = np.nan
+          continue
+
+        tasa_base = tasas[0]
+        ajuste = (1 + tasa_base) ** s
+
+        vp_ajustado = vp * ajuste
+
+        # =========================
+        # 🔥 MULTIPLICAR POR PRIMA
+        # =========================
+        reserva[k] = vp_ajustado * t.loc[k, 'prima_anual']
+
+    t['reserva'] = reserva
+    return t
+
+```
+
+```{python}
+etiqueta = "NR"
+corte = pd.to_datetime('2026-05-31 00:00:00')
+fecha = pd.to_datetime('2026-05-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S1 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S1['Valor_Presente'].sum()
+
+
+corte = pd.to_datetime('2025-12-31 00:00:00')
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S['Valor_Presente'].sum()
+
+FA
+
+corte = pd.to_datetime('2025-03-31 00:00:00')
+fecha = pd.to_datetime('2025-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S2 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S2['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2025-09-30 00:00:00')
+fecha = pd.to_datetime('2025-09-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S3 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S3['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2026-03-31 00:00:00')
+fecha = pd.to_datetime('2026-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S4 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S4['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2026-06-30 00:00:00')
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S5 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S5['Valor_Presente'].sum()
+
+etiqueta = 'R'
+corte = pd.to_datetime('2026-06-30 00:00:00')
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+Resumen[Resumen["duracion_remanente"]<0]
+S5_R = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S5_R['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2026-07-31 00:00:00')
+fecha = pd.to_datetime('2026-07-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S6 = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S6['Valor_Presente'].sum()
+```
+
+#####################################
+Hacer reestructuras
+```{python}
+import pandas as pd
+import random
+
+
+etiqueta = "R"
+tama = 600
+
+corte = pd.to_datetime('2026-05-31 00:00:00')
+fecha = pd.to_datetime('2026-05-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S1_R = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S1_R['Valor_Presente'].sum()
+
+
+corte = pd.to_datetime('2025-12-31 00:00:00')
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S_R = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S_R['Valor_Presente'].sum()
+
+
+
+corte = pd.to_datetime('2025-03-31 00:00:00')
+fecha = pd.to_datetime('2025-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S2_R = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S2_R['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2025-09-30 00:00:00')
+fecha = pd.to_datetime('2025-09-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S3_R = Reserva_Multi(Resumen, FA, fecha, TLR1)
+S3_R['Valor_Presente'].sum()
+
+corte = pd.to_datetime('2026-03-31 00:00:00')
+fecha = pd.to_datetime('2026-03-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S4_R = Reserva_Multi(Resumen, FA , fecha, TLR1)
+S4_R['Valor_Presente'].sum()
+```
+
+```{python}
+corte
+df = Generar_resumen(K,etiqueta)
+M = Reserva_Multi(df, FA, fecha , TLR1)
+
+etiqueta
+corte = pd.to_datetime('2025-12-31 00:00:00')
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+df = Generar_resumen(K,etiqueta)
+M = Reserva_Multi(df, FA, fecha , TLR1)
+#S['Valor_Presente'].sum()
+```
+
+
+
+
+
+```{python eval=FALSE, include=FALSE}
+import pandas as pd
+etiqueta = "NR"
+TLR1 = pd.read_excel("C:/Users/agarciadeleon/Phyton/Plantillas/TLR.xlsx")
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+corte = pd.to_datetime('2025-12-31 00:00:00')
+tama = 600
+anio_origen = pd.to_datetime('2024-05-01 00:00:00')
+cota = pd.to_datetime('2026-02-01 00:00:00')
+K = Preparar_datos(Vigor, corte,TLR1,fecha)
+Resumen = Generar_resumen(K,etiqueta)
+S = Reserva(Resumen,fecha,tama,Res,cota,anio_origen,Vigor,siniestrosF,TLR1)
+S['Valor_Presente'].sum()
+#Resumen['Valor_Presente']
+#F = Factores_siniestralidad(Resumen,tam,Res,cota,anio_origen)
+#Resumen = Generar_resumen(K,etiqueta,tama,Res,cota,anio_origen,Vigor,siniestrosF)
+
+```
+
+```{python eval=FALSE, include=FALSE}
+ZX = S
+#YU.sum()
+import pandas as pd
+#lista = ZX
+JK = len(ZX)
+import pandas as pd
+with pd.ExcelWriter("Reserva_DesempleoUltimateDEF.xlsx", engine="openpyxl") as writer:
+        resultado = ZX
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+        
+import pandas as pd
+with pd.ExcelWriter("MarkovDEF1.xlsx", engine="openpyxl") as writer:
+        #resultado = Markov.head(3)
+        #resultado = tabla123
+        resultado = pd.DataFrame( M1 )
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+```
+
+```{python eval=FALSE, include=FALSE}
+import pandas as pd
+etiqueta = 'NR'
+tama  = 60
+X = Triangulo(siniestrosF)
+Y = Primas(Vigor)
+Res = Siniestralidad(X,Y)
+b = np.array([Factor_S_Demo(x1, Res,tama)[k23][1] for x1 in resultado])
+Resumen
+Factores_siniestralidad(Resumen,tam,Res,cota,anio_origen)
+Factor_S_Demo(1, Res, 600)
+Reserva(n, anio_origen, Res,tama,Vigor, siniestrosF, corte, K, TLR)
+```
+
+Ejemplo ilustrativo
+```{python eval=FALSE, include=FALSE}
+
+#Probabilidades de transición
+#Supongamos póliza de 2 años 3 meses
+#Para el cálculo de probabilidades
+Res1 = Resumen
+P1 = Probabilidades(Vigor,siniestrosF,Res1)
+fila = TLR1.loc[TLR1["Mes"] == fecha]
+TLR = fila.drop(columns=["Mes"]).values[0]
+import random
+random.seed(123)
+F1 = Factores_siniestralidad(Res1,tama,Res,cota,anio_origen)
+n1 = Res1.loc['duracion_remanente']
+t = Res1.loc['DURACION'] - n1
+t1 = t // 12
+t2 = t % 12
+if t2 == 0:
+  m4 = t1
+else:
+  m4 = t1 + 1
+
+t = m4
+n2 = n1 // 12
+n3 = n1 % 12
+
+if n3 == 0:
+  n4 = n2
+else:
+  n4 = n2 + 1
+
+v_values = np.arange(0, n4, dtype=int)
+a = np.array([VP(TLR1, fecha, y, y + 1) for y in v_values])
+if n3 != 0:
+  tasa_ultimo = TLR[int(n4 - 1)]
+  a[-1] = a[-1] / ((1 + tasa_ultimo) ** ((12 - n3) / 12))
+  a[-1] = a[-1]*(n3/12)
+
+b = np.array([F1[x1] for x1 in v_values])
+c = np.array([P1[x1] for x1 in v_values])
+RESERVING = Res1.loc['Prima_anual'] * np.sum(a * b * c)
+#resultado=df_result.head(300)
+import pandas as pd
+with pd.ExcelWriter("EjemploAS.xlsx", engine="openpyxl") as writer:
+        #resultado = Res1
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+        resultado = P1
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=4,
+            index=False
+        )
+        resultado = F1
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=7,
+            index=False
+        )
+        resultado = F1
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=7,
+            index=False
+        )
+        resultado = [n1,t,t1,t2, m4, n1,n2, n4,]
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=10,
+            index=False
+        )
+        resultado = RESERVING
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=10,
+            index=False
+        )
+        resultado = a
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=14,
+            index=False
+        )
+        resultado = b
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=16,
+            index=False
+        )
+        resultado = c
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=18,
+            index=False
+        )
+        
+```
+
+
+
+```{python}
+
+```
+

@@ -1,0 +1,145 @@
+---
+title: "Calculo_FS"
+author: "Metodología anexo"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+\section{Importación de datos}
+```{r}
+library(readr)
+#"C:/Users/agarciadeleon/Phyton/siniestrosParte 1.csv"
+siniestrosParte_1 <- read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 1.csv", 
+    col_types = cols(FEC_OCURRIDO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_REGISTRO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_VIG_DESDE = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_PAGO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_AVISO = col_date(format = "%Y-%m-%d %H:%M:%S")))
+siniestrosParte_2 = read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 2.csv", 
+    col_types = cols(FEC_OCURRIDO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_REGISTRO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_VIG_DESDE = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_PAGO = col_date(format = "%Y-%m-%d %H:%M:%S"), 
+        FEC_AVISO = col_date(format = "%Y-%m-%d %H:%M:%S")))
+Siniestros = rbind(siniestrosParte_1,siniestrosParte_2)
+library(dplyr)
+Siniestros = Siniestros%>%filter(COBERTURA=="DESEMPLEO INVOLUNTARIO")
+sum(Siniestros$IMPORTE_PAGADO)
+```
+
+\section{Generación del triángulo}
+
+```{r}
+library(dplyr)
+library(lubridate)
+Triangulo = Siniestros %>%
+mutate(
+origen = floor_date(FEC_VIG_DESDE, "month"),
+desarrollo = floor_date(FEC_REGISTRO, "month")
+) %>%
+group_by(origen, desarrollo) %>%
+summarise(
+monto = sum(IMPORTE_PAGADO, na.rm = TRUE),
+.groups = "drop"
+)
+```
+
+Validación del monto de siniestros
+```{r}
+sum(Triangulo$monto)
+```
+
+```{r}
+head(Triangulo,7)
+```
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton/Insumos_definitivos")
+#write_feather(Vigor, "Vigor_30_jun_2026.feather")
+#df <- read_feather("Vigor_30_jun_2026.feather")
+primas <- read_feather("VigorDEFI_Fin.feather")
+```
+
+
+
+
+```{r}
+head(primas)
+```
+\section{Obtención de primas}
+```{r}
+Primas = primas%>%
+mutate(
+origen = floor_date(primas$inivig, "month")
+) %>%
+group_by(origen) %>%
+summarise(
+PEO = sum(peotras, na.rm = TRUE),
+.groups = "drop"
+)
+Primas
+Triangulo
+```
+
+
+
+```{r}
+Triangulo = Triangulo%>%
+inner_join(Primas, by = "origen") %>%
+arrange(origen)
+```
+
+```{r}
+Triangulo$Factor = Triangulo$monto/Triangulo$PEO
+Triangulo$desarrollo <- as.POSIXct(Triangulo$desarrollo)
+```
+
+
+
+```{r}
+modelo = lm(Factor~desarrollo, data =Triangulo)
+summary(modelo)
+class(Triangulo$desarrollo)
+head(Triangulo$desarrollo)
+range(Triangulo$desarrollo)
+```
+\section{Análisis residual}
+$$\epsilon = \frac{R_{i,j}}{PEO_i}-(\beta_0+\beta_1\cdot desarrollo)\sim \mathcal{N}(\mu,\sigma)$$
+
+```{r}
+y = rnorm(length(modelo$residuals),mean = mean(modelo$residuals),sd = sd(modelo$residuals))
+ks.test(y,modelo$residuals)
+```
+
+```{r}
+ ModeloLin = function(fecha1,fecha2){
+  sim = 10000
+  residuo = rnorm(sim,mean = mean(modelo$residuals),sd = sd(modelo$residuals))
+  #Las emisiones son mensuales, lo que implica
+  #que hay que obtener la variación temporal prospectiva
+  #de la reserva mas el intercepto que es el valor inicial
+  fecha = as.numeric(fecha2-fecha1)
+  resultado = modelo$coefficients[2]*fecha
+  resultado = modelo$coefficients[1] +resultado
+  resultado1 = resultado + residuo
+  l = list()
+  l[[1]] = quantile(resultado1,
+c(0.05,0.50,0.95))
+  resultado2 = mean(resultado1)
+  l[[2]] = resultado2
+  return(l)
+ }
+fecha1 = as.POSIXct("2026-06-01")
+fecha2 = as.POSIXct("2026-12-31")
+#Usar esta semilla
+set.seed(1234)
+M1 = ModeloLin(fecha1,fecha2)[[1]]
+M = ModeloLin(fecha1,fecha2)[[2]]
+###M es el valor del factor de siniestralidad
+#Debe calibrarse esta técnica en cada corrida
+#No es un valor puntual sino un valor en terminos del desarrollo de un año
+M
+##M1 es la tabla de cuantiles mayores al 75%
+M1
+```
+
+
