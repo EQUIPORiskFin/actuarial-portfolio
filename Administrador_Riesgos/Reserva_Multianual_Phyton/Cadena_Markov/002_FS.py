@@ -92,3 +92,19 @@ def Factor_S_Demo(anio_origen, Res,tama):
     K1.append(("Z_final", Z_final))
 
     return K1
+    ################################################################################
+def Factores_siniestralidad(Resumen,tama,Res,cota,anio_origen):
+   n4 = Resumen['duracion_remanente'].max()
+   n4 = n4.astype(int)
+   #t1 = n4//12
+   #t2 = n4%12
+   #if t2==0:
+    # m4=t1 
+   #else: 
+    # m4 = t1+1
+   v_values = np.arange(0, n4 + 1)
+   #v_values[[-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11]] = 21
+   G  = [anio_origen + pd.DateOffset(years=d2) for d2 in v_values]
+   G = [min(G[k],cota) for k in v_values]
+   G = [Factor_S_Demo(G[k], Res, tam)[-1][1] for k in range(len(G))]
+   return G
