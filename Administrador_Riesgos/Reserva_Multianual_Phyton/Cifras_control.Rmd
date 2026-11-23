@@ -1,0 +1,763 @@
+---
+title: "Cifras_control"
+author: "Alejandro García de Leon"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+```{python}
+#C:/Users/agarciadeleon/Phyton/Insumos_definitivos
+import os
+ruta  =os.path.join("C:/Users/agarciadeleon/Phyton/Insumos_definitivos")
+os.chdir(ruta)
+from openpyxl import load_workbook
+import csv
+wb = load_workbook("VLPHIS5.xlsx", read_only=True)
+k = wb.sheetnames
+```
+
+```{python}
+# k  = k[3]
+for k1 in k:
+ ws = wb[k1] #wb.active  # o especificar nombre de hoja
+ nombre = "archivoPT" + k1 + ".csv"
+ with open(nombre, "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    for row in ws.iter_rows(values_only=True):
+        writer.writerow(row)
+
+```
+
+```{python}
+print(wb.sheetnames)
+from openpyxl import load_workbook
+wb = load_workbook("C:/Users/agarciadeleon/R_Studio/Scripts/Carp1/P1/INFONACOT.xlsx", read_only=True)
+for ws in wb.worksheets:
+  print(ws.title, ws.max_row, ws.max_column)
+```
+
+
+
+
+```{python}
+import os
+print(os.getcwd())
+
+```
+
+
+```{r}
+library(readr)
+archivo1 <- read_csv("C:/Users/agarciadeleon/Phyton/Insumos_definitivos/archivoPTbase_1.csv")
+archivo2 <- read_csv("C:/Users/agarciadeleon/Phyton/Insumos_definitivos/archivoPTbase_2.csv")
+archivo3 <- read_csv("C:/Users/agarciadeleon/Phyton/Insumos_definitivos/archivoPTbase_3.csv")
+archivo4 <- read_csv("C:/Users/agarciadeleon/Phyton/Insumos_definitivos/archivoPTbase_4.csv")
+archivo5 <- read_csv("C:/Users/agarciadeleon/Phyton/Insumos_definitivos/archivoPTbase_5.csv")
+Vigor = rbind(archivo1,archivo2,archivo3,archivo4, archivo5)
+
+head(archivo1)
+head(archivo2)
+head(archivo3)
+head(archivo4)
+head(archivo5)
+```
+
+
+
+```{python}
+df.columns
+df
+import pandas as pd
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_mar2024.xlsb", engine="pyxlsb",)
+B_Primas = df
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_abr2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_may2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_jun2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_jul2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_ago2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_sep2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_oct2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_nov2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_dic2024.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_ene2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_feb2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_mar2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_abr2025.xlsb", engine="pyxlsb")
+df.tail
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_may2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_jun2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_jul2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_ago2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_sep2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_oct2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_nov2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_dic2025.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_ene2026.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_feb2026.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_mar2026.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+df = pd.read_excel("C:/Users/agarciadeleon/Phyton/B_Primas/BorderauxPrimas_abril2026.xlsb", engine="pyxlsb")
+B_Primas = pd.concat([B_Primas, df], axis=0)
+B_Primas = B_Primas.dropna(subset=['POL'])
+```
+
+
+
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton/Insumos_definitivos")
+#write_feather(Vigor, "Vigor_30_jun_2026.feather")
+#df <- read_feather("Vigor_30_jun_2026.feather")
+df <- read_feather("VigorDEFI_Fin.feather")
+which( df$Fecha_FIN_R < df$fecha_credito )
+```
+\section{siniestros}
+
+```{python}
+import os
+ruta  =os.path.join("C:/Users/agarciadeleon/R_Studio/Scripts/Carp1/P1")
+os.chdir(ruta)
+from openpyxl import load_workbook
+import csv
+
+wb = load_workbook("Siniestros FONACOT 07052026.xlsx", read_only=True)
+k = wb.sheetnames
+```
+
+
+```{python}
+for k1 in k:
+ ws = wb[k1]#wb.active  # o especificar nombre de hoja
+ nombre = "siniestros" + k1 + ".csv"
+ with open(nombre, "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    for row in ws.iter_rows(values_only=True):
+        writer.writerow(row)
+```
+
+```{r}
+library(readr)
+siniestrosParte_1 <- read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 1.csv")
+siniestrosParte_2 <- read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 2.csv")
+siniestrosF = rbind(siniestrosParte_1,siniestrosParte_2)
+```
+\section{Trabajo de siniestros}
+```{python}
+Primas.to_feather("Primas_definitivo.feather")
+```
+
+
+```{r}
+library(lubridate)
+B= siniestrosF
+infer_type(B$FEC_VIG_DESDE )
+B$FEC_VIG_DESDE =  as.Date(B$FEC_VIG_DESDE)
+B$Anio_INI = as.numeric(format(B$FEC_VIG_DESDE,"%Y"))
+B$FEC_REGISTRO = as.Date(B$FEC_REGISTRO)
+B$Anio_REGIS = as.numeric(format(B$FEC_REGISTRO ,"%Y"))
+B$FEC_VIG_HASTA =as.Date(B$FEC_VIG_HASTA)
+B$Anio_FIN = as.numeric(format(B$FEC_VIG_HASTA,"%Y"))
+ini <-B$FEC_VIG_DESDE
+fin <- B$FEC_VIG_HASTA
+B$meses <- (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+unique(B$meses)
+
+#corte = as.Date("2025-12-31")
+K = B
+library(dplyr)
+#K = K%>%filter(K$FEC_REGISTRO<=corte)
+#ini <- corte
+#fin <- as.Date(K$FEC_VIG_HASTA)
+#K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion7 = K%>%group_by(meses,Anio_INI,Anio_REGIS,COBERTURA) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO), Monto= sum(IMPORTE_PAGADO), Num_Sin = n_distinct(NRO_STRO), AJUSTE_MAS = sum(AJUSTE_MAS), AJUSTE_MENOS = sum(AJUSTE_MENOS),ESTI_INIC = sum(ESTIMADO_MES), SALVAMENTO = sum(IMPORTE_SALVAMENTO), RECUPERACION = sum(IMPORTE_RECUPEROS), GASTOS = sum(IMPORTE_GASTOS),CESION =  sum(IMPORTE_CESION), RETENCION = sum(IMPORTE_RETENCION),na.rm = TRUE)%>% distinct()
+#Fecha de corte
+corte = as.Date("2026-03-31")
+K = B
+library(dplyr)
+K = K%>%filter(K$FEC_REGISTRO<=corte)
+Segmentacion8 = K%>%group_by(meses,Anio_INI,Anio_REGIS) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO), Monto= sum(IMPORTE_PAGADO), Num_Sin = n_distinct(NRO_STRO), AJUSTE_MAS = sum(AJUSTE_MAS), AJUSTE_MENOS = sum(AJUSTE_MENOS),ESTI_INIC = sum(ESTIMADO_MES), SALVAMENTO = sum(IMPORTE_SALVAMENTO), RECUPERACION = sum(IMPORTE_RECUPEROS), GASTOS = sum(IMPORTE_GASTOS),CESION =  sum(IMPORTE_CESION), RETENCION = sum(IMPORTE_RETENCION),na.rm = TRUE)%>% distinct()
+
+library(openxlsx)
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+  hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion7)
+  hoja <- paste0("Hoja_", 2)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion8)
+  ###################
+   ruta = "C:/Users/agarciadeleon/Phyton"
+ruta_destino = paste(trimws(ruta,which = "right"),"/Siniestros_Tabla_1.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+```
+
+
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton")
+#write_feather(siniestrosF, "sin.feather")
+siniestrosF<- read_feather("sin.feather")
+getwd()
+```
+
+
+```{r}
+library(openxlsx)
+
+B = Vigor%>%filter(CERTIFICADO == "158449698-53385")
+A = siniestrosF%>%filter(CERTIFICADO == "158449698-53385")
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = B)
+  writeData(wb, sheet = hoja,startRow =3, x = A)
+# Guardar el archivo Excel
+ruta_destino = paste(trimws(ruta,which = "right"),"/v.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+getwd()
+```
+
+
+
+```{r}
+library(dplyr)
+merge(x = Vigor, y=siniestrosF , by_x = c("CERTIFICADO" ,"POLIZA"), by_y = c("CERTIFICADO" ,"POLIZA"))
+```
+
+\section{Analisis}
+Coberturas y sumas aseguradas: 
+
+Fallecimiento: Saldo insoluto del crédito FONACOT, incluyendo accesorios e intereses devengados no pagados, al momento del fallecimiento. 
+```{r}
+library(readxl)
+Siniestros_FONACOT_07052026 <- read_excel("C:/Users/agarciadeleon/R_Studio/Scripts/Carp1/P1/Siniestros FONACOT 07052026.xlsx")
+```
+
+```{r}
+unique(Vigor$Estatus)
+```
+
+```{r}
+summary(archivo)
+```
+
+\section{Actualización columna suma asegurada para desempleo}
+El campo de interés es \texttt{SA_OTRAS} para la base de siniestros dee detectarse \texttt{COBERTURA} cuando esta sea desempleo.
+
+```{r}
+B = Vigor
+a="12-1582-1"
+gsub("^\\d+-", replacement = "", a)
+B$POLIZA = B$poliza
+B$Key = B$POLIZA
+B$Key = sapply(B$Key, function(x){ return(gsub("^\\d+-", replacement = "", x))})
+unique(siniestrosF$COBERTURA)
+A = siniestrosF[which(siniestrosF$COBERTURA == "DESEMPLEO INVOLUNTARIO"),]
+unique(A$COBERTURA)
+unique(A$CAUSA)
+
+#A = merge(x = B, y=siniestrosF , by_x = c("CERTIFICADO" ,"Key"), by_y = c("CERTIFICADO" ,"POLIZA"))
+```
+
+```{r}
+library(dplyr)
+A1 <- A %>%
+  group_by(CERTIFICADO ,POLIZA) %>%
+  summarise(
+    SUMA_A = sum(IMPORTE_PAGADO),
+  ) %>%
+  ungroup()
+
+A1 = A1%>%distinct()
+unique(A1$CERTIFICADO)
+write_feather(A1, "Suma_despido_agrupada.feather")
+
+Vigor$SA_OTRAS
+library(dplyr)
+B$CERTIFICAD = B$certificad
+B$SAOTRAS = B$saotras
+B$SABAS = B$sabas
+B$SAITP = B$saitp
+B$PETOTAL = B$petotal
+B$PEBAS = B$petotal
+B$PEIPT = B$peipt
+B$PEOTRAS = B$peotras
+C_resultado = B %>%
+  left_join(A1, by = c("CERTIFICAD"="CERTIFICADO", "Key"="POLIZA")) %>%
+  mutate(SA_OTRAS_1 = ifelse((!is.na(SUMA_A)&SAOTRAS!=0), SAOTRAS - SUMA_A, SAOTRAS)) %>%
+  select(-SUMA_A)
+```
+
+Aquí se verifica que no haya negativos, valores de \texttt{SA_OTRAS} en valor absoluto menor a .999 se consideran 0.
+```{r}
+KPrueba = cbind(C_resultado$SA_OTRAS,C_resultado$SA_OTRAS_1)
+KPrueba = as.data.frame(KPrueba)
+KPrueba = KPrueba%>%arrange(desc(V2))
+KPrueba[(which(abs(KPrueba$V2) <.1)),]
+length(which(abs(C_resultado$SA_OTRAS_1) <10))
+C_resultado$SA_OTRAS_1 = sapply(C_resultado$SA_OTRAS_1, function(x){return(ifelse(abs(x)<.999,0,x))})
+summary(C_resultado$SA_OTRAS_1)
+Inv = C_resultado[which(round(C_resultado$SA_OTRAS_1,3)<0),]
+```
+
+```{r}
+Vigor$SA_OTRAS1 = C_resultado$SA_OTRAS_1
+unique(Vigor$SAOTRAS-C_resultado$SAOTRAS)
+```
+
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton")
+#write_feather(Vigor, "VigorDEFI.feather")
+#Vigor <- read_feather("Vigor_sin_Des.feather")
+getwd()
+```
+
+\section{Segmentación de datos}
+```{r}
+ Segmentacion = siniestrosF%>%group_by(COBERTURA) %>%
+  summarise(Numero = sum(!is.na(NRO_STRO)),Certificados =n_distinct(CERTIFICADO) ,Monto = sum(IMPORTE_PAGADO) ,na.rm = TRUE)%>% distinct()
+sum(siniestrosF$IMPORTE_PAGADO)
+siniestrosF%>%filter(siniestrosF$COBERTURA == "COBERTURA BÁSICA POR FALLECIMIENTO")
+siniestrosF%>%filter(siniestrosF$COBERTURA == "COBERTURA DE INDEMNIZACIÓN POR INVALIDEZ TOTAL Y PERMANENTE(3MESES)")
+siniestrosF%>%filter(siniestrosF$COBERTURA == "DESEMPLEO INVOLUNTARIO")
+Segmentacion$Monto/Segmentacion$Numero
+Segmentacion
+```
+
+\section{Creación de camadas por año de emisión}
+```{r}
+#Funciones para la obtencion de insumos
+Anio  =2025
+B = Vigor
+B$FEC_EMI = B$femis
+B$FEC_EMI = as.Date(as.character(B$FEC_EMI), format = "%Y%m%d")
+B$Anio = as.numeric(format(B$FEC_EMI,"%Y"))
+B$INIVIGEND = B$
+B$INIVIGEND = as.Date(as.character(B$INIVIGEND), format = "%Y%m%d")
+B$Anio_INI = as.numeric(format(B$INIVIGEND ,"%Y"))
+B$FINVIGEND = as.Date(as.character(B$FINVIGEND), format = "%Y%m%d")
+B$Anio_FIN = as.numeric(format(B$FINVIGEND,"%Y"))
+inicio <- as.Date("2025-02-15")
+fin    <- as.Date("2025-03-10")
+fecha <- as.Date("20240101", format = "%Y%m%d")
+
+hay_mes = function(inicio,fin,anio, mes){
+  if(mes %in% c("01","03","05","07","08","10","12")){
+    dia = "-31"
+  }else if(mes %in% c("02")){
+    dia = "-28"
+  }else{
+    dia = "-30"
+  }
+enero_2025_inicio <- as.Date(paste0(anio,"-",mes,"-01"))
+enero_2025_fin    <- as.Date(paste0(anio,"-",mes,dia))
+toca_enero_2025 <- enero_2025_inicio <= fin & enero_2025_fin >= inicio
+return(toca_enero_2025)
+}
+inicio <- as.Date("2025-02-15")
+fin    <- as.Date("2025-11-10")
+hay_mes(inicio,fin,anio = "2025",mes = "12")
+```
+
+
+```{r}
+generacion = list()
+k3 = unique(B$Anio)
+for(k in 1:length(k3)){
+  generacion[[k]] = B%>%filter(Anio == k3[k])
+}
+```
+
+
+```{r}
+####Construir una función para el factor de devengamiento
+Insumo_Final$diasP = as.numeric(mapply(dias_poliza_2025,
+                                           f_inicio = Insumo_Final$FE_INI,
+                                           f_fin = Insumo_Final$F_FIN,
+                                           mes_2025 = mes0,
+                                           anio1 = current_anio1))
+
+  Insumo_Final$Factor_denominator = as.numeric(mapply(function(fin,inicio){
+    return(as.numeric(fin- inicio + 1))
+  }, inicio=Insumo_Final$FE_INI, fin = Insumo_Final$F_FIN))
+
+  
+  Insumo_Final$Factor = Insumo_Final$diasP/Insumo_Final$Factor_denominator
+  Insumo_Final$PD =Insumo_Final$Factor*Insumo_Final$Prima_emitida
+
+```
+
+
+
+```{r}
+Segmentacion1 = siniestrosF%>%group_by(COBERTURA) %>%
+  summarise(mediana = median(IMPORTE_PAGADO), Monto_medio = mean(IMPORTE_PAGADO) ,na.rm = TRUE)%>% distinct()
+Segmentacion1
+```
+
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton")
+write_feather(Segmentacion, "Detalle_Sin.feather")
+df4 <- read_feather("Detalle_Sin.feather")
+write_feather(Segmentacion1, "Detalle_Sin1.feather")
+df5 <- read_feather("Detalle_Sin1.feather")
+getwd()
+library(openxlsx)
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion)
+  writeData(wb, sheet = hoja,startRow =7, x = Segmentacion1)
+  hoja <- paste0("Hoja_", 2)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(Vigor,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+  
+# Guardar el archivo Excel
+  ruta = "C:/Users/agarciadeleon/Phyton"
+ruta_destino = paste(trimws(ruta,which = "right"),"/Detalle_Sin.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+
+summary(Vigor$SA_OTRAS)
+```
+
+
+
+```{r}
+library(lubridate)
+k78=3
+kj = generacion[[k78]]
+
+ini <- as.Date(kj$INIVIGEND)
+fin <- as.Date(kj$FINVIGEND)
+
+generacion[[k78]]$meses <- (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+#6 12,18,24,30
+unique(generacion[[k78]][which(generacion[[k78]]$meses %in% c(10:15,17:21,22:25,27:32)),]$ST_CERTIFICADO)
+#,17:20,22:26,28:32 el tema es 26
+generacion[[k78]][which(generacion[[k78]]$meses == 26),]
+
+#generacion[[k78]]$meses = sapply(generacion[[k78]]$meses, function(x){
+ # (return(floor(x)))
+#})
+sort(unique(generacion[[k78]]$meses))
+write.xlsx(head(generacion[[k78]][which(generacion[[k78]]$meses == 33),],300000),"Ejemplo.xlsx")
+fecha1 <- as.Date("2023-01-01")
+fecha2 <- as.Date("2024-03-01")
+
+meses <- as.numeric(difftime(fecha2, fecha1, units = "days")) / 30.44
+meses
+
+generacion[[3]][which(generacion[[3]]$meses == 26 & generacion[[3]]$ST_CERTIFICADO == "VIGOR"),]
+#CONCLUSIONES TODOS LOS CREDITOS DE MENOS DE LA TEMPORALIDAD QUE ME DIO DULCE
+#ESTAN DADOS DE BAJA EXCEPTO AQUELLOS QUE INICIARON VIGENCIA DOS MESES ANTES DE SU EMISIÓN EN EL CASO DE 26 MESES ES DECIR 23 MESES QUITANDO LOS TRES MESES DE DESFASE
+
+####
+generacion[[3]]$ST_CERTIFICADO
+library(modeest)
+####################
+m23 = 1
+#Fecha de corte
+corte = as.Date("2025-12-31")
+K = generacion[[m23]]
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion2 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO) ,Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP) ,na.rm = TRUE)%>% distinct()
+#Fecha de corte
+corte = as.Date("2026-03-31")
+K = generacion[[m23]]
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion3 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO) ,Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP) ,na.rm = TRUE)%>% distinct()
+
+library(openxlsx)
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion2)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion3)
+  hoja <- paste0("Hoja_", 2)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(K,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+  ##########################
+  hoja <- paste0("Hoja_", 3)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion2)
+  hoja <- paste0("Hoja_", 4)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(K,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+  ##########################
+  hoja <- paste0("Hoja_", 5)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion3)
+  hoja <- paste0("Hoja_", 6)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(K,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+  ###################
+  hoja <- paste0("Hoja_", 7)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion2)
+  hoja <- paste0("Hoja_", 8)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(K,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+  ####################
+  hoja <- paste0("Hoja_", 9)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion3)
+  hoja <- paste0("Hoja_", 10)
+  addWorksheet(wb, hoja)
+  Auxiliar = head(K,300000)
+  writeData(wb, sheet = hoja, x = Auxiliar)
+# Guardar el archivo Excel
+  ruta = "C:/Users/agarciadeleon/Phyton"
+ruta_destino = paste(trimws(ruta,which = "right"),"/Generaciones.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+```
+
+\section{Tablas completas y ejemplo}
+```{r}
+library(lubridate)
+B = Vigor
+B$FEC_EMI = as.Date(as.character(B$FEC_EMI), format = "%Y%m%d")
+B$Anio = as.numeric(format(B$FEC_EMI,"%Y"))
+B$INIVIGEND = as.Date(as.character(B$INIVIGEND), format = "%Y%m%d")
+B$Anio_INI = as.numeric(format(B$INIVIGEND ,"%Y"))
+B$FINVIGEND = as.Date(as.character(B$FINVIGEND), format = "%Y%m%d")
+B$Anio_FIN = as.numeric(format(B$FINVIGEND,"%Y"))
+ini <-B$INIVIGEND
+fin <- B$FINVIGEND
+B$meses <- (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+unique(B$meses)
+corte = as.Date("2025-12-31")
+K = B
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion2 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO) ,Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP) ,na.rm = TRUE)%>% distinct()
+#Fecha de corte
+corte = as.Date("2026-03-31")
+K = B
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion3 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO) ,Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP) ,na.rm = TRUE)%>% distinct()
+
+library(openxlsx)
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+  hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion2)
+  hoja <- paste0("Hoja_", 2)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion3)
+  ###################
+   ruta = "C:/Users/agarciadeleon/Phyton"
+ruta_destino = paste(trimws(ruta,which = "right"),"/Generaciones_DEF.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+```
+
+```{r}
+library(arrow)
+write_feather(Segmentacion2, "Detalle_corte_1.feather")
+write_feather(Segmentacion3, "Detalle_corte_2.feather")
+getwd()
+```
+
+```{r}
+library(lubridate)
+B = Vigor
+B$FEC_EMI = as.Date(as.character(B$FEC_EMI), format = "%Y%m%d")
+B$Anio = as.numeric(format(B$FEC_EMI,"%Y"))
+B$INIVIGEND = as.Date(as.character(B$INIVIGEND), format = "%Y%m%d")
+B$Anio_INI = as.numeric(format(B$INIVIGEND ,"%Y"))
+B$FINVIGEND = as.Date(as.character(B$FINVIGEND), format = "%Y%m%d")
+B$Anio_FIN = as.numeric(format(B$FINVIGEND,"%Y"))
+ini <-B$INIVIGEND
+fin <- B$FINVIGEND
+B$meses <- (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+unique(B$meses)
+corte = as.Date("2025-12-31")
+K = B
+library(dplyr)
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion5 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO), Suma_Desempleo_original= sum(SA_OTRAS), Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP), prima_total = sum(PETOT),prima_Basica = sum(PEBAS), prima_Invalidez = sum(PE_ITP), prima_desempleo = sum(PE_OTRAS) ,na.rm = TRUE)%>% distinct()
+#Fecha de corte
+corte = as.Date("2026-03-31")
+K = B
+K = K%>%filter(K$FEC_EMI<=corte)
+ini <- corte
+fin <- as.Date(K$FINVIGEND)
+K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+Segmentacion6 = K%>%group_by(meses,ST_CERTIFICADO) %>%
+  summarise(Certificados =n_distinct(CERTIFICADO) ,Suma_Desempleo_original= sum(SA_OTRAS), Suma_Desempleo = sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SA_ITP) ,prima_total = sum(PETOT),prima_Basica = sum(PEBAS), prima_Invalidez = sum(PE_ITP), prima_desempleo = sum(PE_OTRAS),na.rm = TRUE)%>% distinct()
+
+library(openxlsx)
+wb <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+  hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja, x = Segmentacion5)
+  hoja <- paste0("Hoja_", 2)
+  addWorksheet(wb, hoja)
+  writeData(wb, sheet = hoja,startRow =2, x = Segmentacion6)
+  ###################
+   ruta = "C:/Users/agarciadeleon/Phyton"
+ruta_destino = paste(trimws(ruta,which = "right"),"/Vigor_Prima_sum_meses.xlsx", sep ="")
+saveWorkbook(wb, ruta_destino, overwrite = TRUE)
+```
+
+
+
+```{r}
+library(lubridate)
+B = Vigor
+names(B)
+B$Reestructura = sapply(B$Fecha_FIN_R, FUN = function(x){ifelse(!is.na(x),"R","NR")})
+B$FEMIS = B$femis
+B$FEMIS = as.Date(B$FEMIS)
+B$Anio = as.numeric(format(B$FEMIS,"%Y"))
+B$INIVIG = B$inivig
+B$INIVIG = as.Date(B$INIVIG)
+B$Anio_INI = as.numeric(format(B$INIVIG ,"%Y"))
+B$FIN_PLAZO = B$fin_plazo
+B$FIN_PLAZO = as.Date(B$FIN_PLAZO)
+B$Anio_FIN = as.numeric(format(B$FIN_PLAZO,"%Y"))
+ini <- B$INIVIG
+fin <- B$FIN_PLAZO
+###############
+##############
+B$INIVIG1 = as.Date(B$fecha_credito)
+B$Anio_INI1 = as.numeric(format(B$INIVIG1 ,"%Y"))
+B$FIN_PLAZO1 = as.Date(B$fin_de_vig)
+B$Anio_FIN1 = as.numeric(format(B$FIN_PLAZO1,"%Y"))
+B$INIVIG2 = as.Date(B$fecha_ini_r)
+B$Anio_INI2 = as.numeric(format(B$INIVIG2 ,"%Y"))
+B$FIN_PLAZO2 = as.Date(B$Fecha_FIN_R)
+B$Anio_FIN2 = as.numeric(format(B$FIN_PLAZO1,"%Y"))
+ini <-B$INIVIG1
+fin <- B$FIN_PLAZO1
+ini1 <-B$INIVIG1
+fin1 <- B$FIN_PLAZO2
+B$meses = mapply(function(ini1,fin1,z,ini,fin){ifelse(z == "NR",(year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini)),(year(fin1) - year(ini1)) * 12 + (month(fin1) - month(ini1)) - (day(fin1) < day(ini1)))},ini1,fin1,B$Reestructura,ini,fin )
+
+B$CERTIFICAD = B$certificad
+B$SAOTRAS = B$saotras
+B$SABAS = B$sabas
+B$SAITP = B$saitp
+B$PETOTAL = B$petotal
+B$PEBAS = B$pebas
+B$PEIPT = B$peipt
+B$PEOTRAS = B$peotras
+#B$meses <- (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+unique(B$meses)
+corte = as.Date("2026-06-30")
+K = B
+library(dplyr)
+K = K%>%filter(K$FEMIS<=corte)
+ini <- sapply(K$FIN_PLAZO1,function(x){return(min(x,corte))})
+ini = as.Date(ini)
+fin <- as.Date(K$FIN_PLAZO1)
+fin1 <- as.Date(K$FIN_PLAZO2)
+K$duracion_remanente = mapply(function(fin1,z,ini,fin){ifelse(z == "NR",(year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini)),(year(fin1) - year(ini)) * 12 + (month(fin1) - month(ini)) - (day(fin1) < day(ini)))},fin1,K$Reestructura,ini,fin )
+
+#K$duracion_remanente = (year(fin) - year(ini)) * 12 + (month(fin) - month(ini)) - (day(fin) < day(ini))
+#,DURACION
+Segmentacion10 = K%>%group_by(plazo,Reestructura,meses, DURACION) %>%
+  summarise(Certificados =n_distinct(CERTIFICAD,na.rm = TRUE), Cuota = sum(CUOTA,na.rm = TRUE), Capital = sum(CAPITALR,na.rm = TRUE), Suma_Desempleo_original= sum(SAOTRAS), Suma_Desempleo=sum(SA_OTRAS1), DRP = mean(duracion_remanente), Suma_Basica = sum(SABAS),Suma_Invalidez = sum(SAITP), prima_total = sum(PETOTAL),prima_Basica = sum(PEBAS), prima_Invalidez = sum(PEIPT), prima_desempleo = sum(PEOTRAS) ,na.rm = TRUE)%>% distinct()%>%arrange(Reestructura)
+
+library(openxlsx)
+wb1 <- createWorkbook()
+
+# Función para convertir una lista de vectores a un data.frame (cada vector como columna)
+  hoja <- paste0("Hoja_", 1)
+  addWorksheet(wb1, hoja)
+  writeData(wb1, sheet = hoja, x = Segmentacion10)
+  ###################
+ruta = "C:/Users/agarciadeleon/Phyton/Insumos_definitivos"
+ruta_destino = paste(trimws(ruta,which = "right"),"/ResumenDefJunio.xlsx", sep ="")
+saveWorkbook(wb1, ruta_destino, overwrite = TRUE)
+```
+
+```{r}
+library(arrow)
+setwd("C:/Users/agarciadeleon/Phyton/Insumos_definitivos")
+#write_feather(Vigor, "VigorDEFI_Fin.feather")
+#Vigor <- read_feather("VigorDEFI_Fin.feather")
+getwd()
+```
+
+\section{Actualización columna suma asegurada para desempleo}
+El campo de interés es \texttt{SA_OTRAS} para la base de siniestros dee detectarse \texttt{COBERTURA} cuando esta sea desempleo.
+
+```{r}
+B = Vigor
+a="12-1582-1"
+gsub("^\\d+-", replacement = "", a)
+B$Key = B$POLIZA
+B$Key = sapply(B$Key, function(x){ return(gsub("^\\d+-", replacement = "", x))})
+unique(siniestrosF$COBERTURA)
+A = siniestrosF[which(siniestrosF$COBERTURA == "DESEMPLEO INVOLUNTARIO"),]
+unique(A$COBERTURA)
+unique(A$CAUSA)
+
+#A = merge(x = B, y=siniestrosF , by_x = c("CERTIFICADO" ,"Key"), by_y = c("CERTIFICADO" ,"POLIZA"))
+```
