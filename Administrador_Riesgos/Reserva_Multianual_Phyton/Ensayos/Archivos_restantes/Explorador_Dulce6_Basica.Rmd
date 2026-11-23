@@ -1,0 +1,993 @@
+---
+title: "Practica"
+author: "Alejandro García de Leon"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+Importación
+```{python}
+import pandas as pd
+TLR1 = pd.read_excel("C:/Users/agarciadeleon/Phyton/Plantillas/TLR.xlsx")
+tabla = pd.read_excel("C:/Users/agarciadeleon/Phyton/Plantillas/Tabla_definitiva.xlsx")
+w= pd.read_excel("C:/Users/agarciadeleon/Phyton/Plantillas/Tabla_Caducidad.xlsx")
+Vigor = pd.read_feather('VigorDEFI_Fin.feather')
+Vigor['POLIZA'] = Vigor['poliza']
+Vigor['EDAD'] = Vigor['edad']
+Vigor['FEMIS'] = Vigor['femis']
+Vigor['CERTIFICAD'] = Vigor['certificad']
+Vigor['SAOTRAS'] = Vigor['saotras']
+Vigor['SABAS'] = Vigor['sabas']
+Vigor['SAITP'] = Vigor['saitp']
+Vigor['PETOTAL'] = Vigor['petotal']
+Vigor['PEBAS'] = Vigor['petotal']
+Vigor['PEIPT'] = Vigor['peipt']
+Vigor['PEOTRAS'] = Vigor['peotras']
+import pandas as pd
+
+# Fecha FEMIS
+Vigor["FEMIS"] = pd.to_datetime(Vigor["femis"])
+Vigor["Anio"] = Vigor["FEMIS"].dt.year
+
+# Fecha inicio vigencia
+Vigor["INIVIG"] = pd.to_datetime(Vigor["inivig"])
+Vigor["Anio_INI"] = Vigor["INIVIG"].dt.year
+
+# Fecha fin plazo
+Vigor["FIN_PLAZO"] = pd.to_datetime(Vigor["fin_plazo"])
+Vigor["Anio_FIN"] = Vigor["FIN_PLAZO"].dt.year
+
+# Variables auxiliares
+ini = Vigor["INIVIG"]
+fin = Vigor["FIN_PLAZO"]
+
+# Fecha crédito
+Vigor["INIVIG1"] = pd.to_datetime(Vigor["fecha_credito"])
+Vigor["Anio_INI1"] = Vigor["INIVIG1"].dt.year
+
+# Fin de vigencia
+Vigor["FIN_PLAZO1"] = pd.to_datetime(Vigor["fin_de_vig"])
+Vigor["Anio_FIN1"] = Vigor["FIN_PLAZO1"].dt.year
+Vigor["INIVIG2"] = pd.to_datetime(Vigor["fecha_ini_r"])
+Vigor["Anio_INI2"] = Vigor["INIVIG2"].dt.year
+Vigor["FIN_PLAZO2"] = pd.to_datetime(Vigor["Fecha_FIN_R"])
+Vigor["Anio_FIN2"] = Vigor["FIN_PLAZO1"].dt.year
+siniestrosParte_1 = pd.read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 1.csv")
+siniestrosParte_2 = pd.read_csv("C:/Users/agarciadeleon/Phyton/siniestrosParte 2.csv")
+siniestrosF = pd.concat([siniestrosParte_1, siniestrosParte_2], axis=0)
+#Vigor.columns
+```
+Funciones biometricas
+```{python}
+import pandas as pd
+
+# Función q(x): probabilidad de morir entre x y x+1
+def mortality(x, tabla):
+    er1 = tabla['x'].max()
+    x1 = min(x,er1)
+    d = tabla[tabla['x'] == x1]
+    d = d.loc[x1, "q"]
+    return d
+  
+# Función p(x): probabilidad de sobrevivir de x a x+1
+def p(x, tabla ):
+    return 1-mortality(x, tabla)
+
+# Supervivencia tpx
+def supervivencia(t, x, tabla):
+  k=1
+  for i in range(t):
+        k = k * p(x + i, tabla)
+  return k
+```
+
+Fecha
+```{python}
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+fecha = pd.to_datetime(fecha).tz_localize(None)
+fecha = fecha.date()
+fecha = fecha.strftime('%Y-%m-%d')
+```
+
+Valor Presente
+```{python}
+import numpy as np
+import math as m
+def VP(TLR1, fecha,z,w):
+    K = TLR1.loc[TLR1["Mes"] == fecha, z+1].values[0]
+    er = 1 + K
+    er = 1 / er
+    er = er ** w
+    return er
+VP(TLR1, fecha,1,1)
+```
+
+Prima Anual
+```{python eval=FALSE, include=FALSE}
+import numpy as np
+import numpy as np
+import pandas as pd
+
+def prima_anual(K, TLR1, fecha):
+
+    PE = K["PETOTAL"].to_numpy()
+    DUR = K["DURACION"].to_numpy()
+    n = len(DUR)
+
+    # Obtener TLR solo 1 vez
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    TLR = fila.drop(columns=["Mes"]).to_numpy()[0]
+
+    
+    max_w = int((DUR.max() // 12)+1)
+
+    
+    VP_vals = np.array([VP(TLR1, fecha, w, w) for w in range(max_w)])
+
+    PAN = np.empty(n)
+
+    for i in range(n):
+
+        dur = DUR[i]
+        x1 = PE[i]
+
+        x2 = dur // 12
+        x21 = dur % 12
+
+        xs = x2 if x21 == 0 else 1 + x2
+        xs_idx = int(xs - 1)
+
+        
+        suma = VP_vals[:xs_idx + 1].sum()
+      
+        tasa_ultimo = TLR[xs_idx]
+        ajuste = VP_vals[xs_idx] / ((1 + tasa_ultimo) ** ((12 - x21) / 12))
+
+        suma = suma - VP_vals[xs_idx] + ajuste
+
+        PAN[i] = x1 / suma
+
+    return pd.DataFrame({"PAN": PAN})
+```
+
+
+Preparar datos
+```{python eval=FALSE, include=FALSE}
+import pandas as pd
+import numpy as np
+
+import pandas as pd
+import numpy as np
+
+def calc_meses(ini, fin):
+    return (
+        (fin.dt.year - ini.dt.year) * 12
+        + (fin.dt.month - ini.dt.month)
+        - (fin.dt.day < ini.dt.day).astype(int)
+    )
+
+def preparar_datos2(Vigor, siniestrosF, corte, fecha, TLR1):
+
+    # ========================
+    # 1. Base
+    # ========================
+    B = Vigor.copy()
+
+    # ========================
+    # 2. Meses iniciales
+    # ========================
+    meses_NR = calc_meses(B["INIVIG1"], B["FIN_PLAZO1"])
+    meses_R  = calc_meses(B["INIVIG1"], B["FIN_PLAZO2"])
+
+    # ========================
+    # 3. Llaves (IMPORTANTE)
+    # ========================
+    B["POLIZA"] = B["POLIZA"].astype(str)
+
+    # quitar prefijo tipo "123-"
+    B["Key"] = B["POLIZA"].str.replace(r"^\d+-", "", regex=True)
+
+    # ========================
+    # 4. Siniestros
+    # ========================
+    A = siniestrosF.loc[
+        siniestrosF["COBERTURA"] == "DESEMPLEO INVOLUNTARIO"
+    ].copy()
+
+    A["POLIZA"] = A["POLIZA"].astype(str)
+
+    # CRÍTICO: limpiar también en A
+    A["POLIZA_clean"] = A["POLIZA"].str.replace(r"^\d+-", "", regex=True)
+
+    A1 = (
+        A.groupby(["CERTIFICADO", "POLIZA_clean"], as_index=False)
+         ["IMPORTE_PAGADO"]
+         .sum()
+         .rename(columns={
+             "IMPORTE_PAGADO": "SUMA_A",
+             "POLIZA_clean": "POLIZA"
+         })
+    )
+
+    # ========================
+    # 5. Merge (seguro)
+    # ========================
+    C_resultado = B.merge(
+        A1,
+        how="left",
+        left_on=["CERTIFICAD", "Key"],
+        right_on=["CERTIFICADO", "POLIZA"],
+        suffixes=("", "_sin"),
+        indicator=True   # DEBUG
+    )
+
+    # 
+    # print(C_resultado["_merge"].value_counts())
+
+    # ========================
+    # 6. Ajuste SA_OTRAS
+    # ========================
+    C_resultado["SA_OTRAS_1"] = np.where(
+        (C_resultado["SUMA_A"].notna()) & (C_resultado["SAOTRAS"] != 0),
+        C_resultado["SAOTRAS"] - C_resultado["SUMA_A"],
+        C_resultado["SAOTRAS"]
+    )
+
+    # ajuste de tolerancia
+    C_resultado["SA_OTRAS_1"] = np.where(
+        np.abs(C_resultado["SA_OTRAS_1"]) < 0.999,
+        0,
+        C_resultado["SA_OTRAS_1"]
+    )
+
+    # limpiar
+    C_resultado = C_resultado.drop(
+        columns=["SUMA_A", "POLIZA_sin", "_merge"],
+        errors="ignore"
+    )
+
+    B = C_resultado
+
+    # ========================
+    # 7. Meses finales
+    # ========================
+    B["meses"] = np.where(
+        B["Reestructura"] == "NR",
+        meses_NR,
+        meses_R
+    )
+
+    # ========================
+    # 8. Filtrar por corte
+    # 
+    # ========================
+    corte = pd.to_datetime(corte)
+
+    K = B[B["FEMIS"] <= corte]
+
+    # ========================
+    # 9. Duración remanente
+    # ========================
+    ini = pd.Series(
+        np.minimum(K["FIN_PLAZO1"].values, corte),
+        index=K.index
+    )
+
+    fin  = K["FIN_PLAZO1"]
+    fin1 = K["FIN_PLAZO2"]
+
+    dur_NR = calc_meses(ini, fin)
+    dur_R  = calc_meses(ini, fin1)
+
+    K["duracion_remanente"] = np.where(
+        K["Reestructura"] == "NR",
+        dur_NR,
+        dur_R
+    )
+
+    # ========================
+    # 10. fecha2
+    # ========================
+    K["fecha2"] = np.where(
+        K["Reestructura"] == "NR",
+        fin,
+        fin1
+    )
+
+    K["fecha2"] = pd.to_datetime(K["fecha2"])
+
+    # ========================
+    # 11. prima
+    # ========================
+    #K["prima_anual"] = prima_anual(K, TLR1, fecha)
+
+    return K
+
+
+```
+
+Preparar datos2
+```{python eval=FALSE, include=FALSE}
+def Preparar_datos(Vigor, corte,fecha):
+    B = Vigor.copy()
+    date_cols = [
+    "FEMIS", "INIVIG", "FIN_PLAZO",
+    "fecha_credito", "fin_de_vig",
+    "fecha_ini_r", "Fecha_FIN_R"
+    ]
+    # Normalizar TODAS las fechas
+    for col in date_cols:
+     B[col] = pd.to_datetime(B[col], errors="coerce")
+     try:
+        B[col] = B[col].dt.tz_localize(None)
+     except:
+        pass
+
+    corte = pd.to_datetime(corte).tz_localize(None)
+    # Reestructura
+    B["Reestructura"] = np.where(B["Fecha_FIN_R"].notna(), "R", "NR")
+
+    # Conversión de fechas
+    B["FEMIS"] = pd.to_datetime(B["FEMIS"])
+    B["INIVIG"] = pd.to_datetime(B["INIVIG"])
+    B["FIN_PLAZO"] = pd.to_datetime(B["FIN_PLAZO"])
+
+    # Años
+    B["Anio"] = B["FEMIS"].dt.year
+    B["Anio_INI"] = B["INIVIG"].dt.year
+    B["Anio_FIN"] = B["FIN_PLAZO"].dt.year
+
+    # Nuevas fechas base
+    B["INIVIG1"] = pd.to_datetime(B["fecha_credito"])
+    B["Anio_INI1"] = B["INIVIG1"].dt.year
+    B["FIN_PLAZO1"] = pd.to_datetime(B["fin_de_vig"])
+    B["Anio_FIN1"] = B["FIN_PLAZO1"].dt.year
+
+    # Reestructuras
+    B["INIVIG2"] = pd.to_datetime(B["fecha_ini_r"])
+    B["Anio_INI2"] = B["INIVIG2"].dt.year
+    B["FIN_PLAZO2"] = pd.to_datetime(B["Fecha_FIN_R"])
+    B["Anio_FIN2"] = B["FIN_PLAZO1"].dt.year  # igual que en tu código R
+
+    # Variables auxiliares
+    ini = B["INIVIG1"]
+    fin = B["FIN_PLAZO1"]
+    ini1 = B["INIVIG1"]
+    fin1 = B["FIN_PLAZO2"]
+
+    # Función para calcular meses (equivalente a lubridate)
+    def calc_meses(ini, fin):
+        return (
+            (fin.dt.year - ini.dt.year) * 12
+            + (fin.dt.month - ini.dt.month)
+            - (fin.dt.day < ini.dt.day).astype(int)
+        )
+
+    # meses de duración
+    meses_NR = calc_meses(ini, fin)
+    meses_R = calc_meses(ini1, fin1)
+
+    B["meses"] = np.where(B["Reestructura"] == "NR", meses_NR, meses_R)
+
+    # Filtrar por corte
+    corte = pd.to_datetime(corte)
+    K = B[B["FEMIS"] <= corte].copy()
+
+    # ini = pmin(FIN_PLAZO1, corte)
+    ini = pd.Series(
+    np.minimum(K["FIN_PLAZO1"].values, corte),
+    index=K.index
+    )
+
+    fin = K["FIN_PLAZO1"]
+    fin1 = K["FIN_PLAZO2"]
+
+    # Duración remanente
+    dur_NR = (
+        (fin.dt.year - ini.dt.year) * 12
+        + (fin.dt.month - ini.dt.month)
+        - (fin.dt.day < ini.dt.day).astype(int)
+    )
+
+    dur_R = (
+        (fin1.dt.year - ini.dt.year) * 12
+        + (fin1.dt.month - ini.dt.month)
+        - (fin1.dt.day < ini.dt.day).astype(int)
+    )
+
+    K["duracion_remanente"] = np.where(K["Reestructura"] == "NR", dur_NR, dur_R)
+
+    # fecha2
+    K["fecha2"] = np.where(K["Reestructura"] == "NR", fin, fin1)
+    K["fecha2"] = pd.to_datetime(K["fecha2"])
+    K['prima_anual'] = prima_anual(K, TLR1,fecha)
+    #K['prima_N_devengada'] = prima_N_devengada(1, corte, K, TLR)
+    return K
+```
+
+Preparar datos 3
+```{python}
+import pandas as pd
+import numpy as np
+def P_No_devengada(K,fecha):
+ INI = pd.to_datetime(K["INIVIG1"], errors="coerce")
+ FIN = pd.to_datetime(K["FIN_PLAZO1"], errors="coerce")
+ DUR = K["meses"]
+ Duracion_remanente = K["duracion_remanente"]
+ PE = K["PETOTAL"]
+ n = len(DUR)
+ PND = np.empty(n)
+ for i in range(n):
+  dur = DUR[i]
+  x1 = PE[i]
+  dur_re = Duracion_remanente[i]
+  PND[i] = x1*dur_re/dur
+ return(PND)
+def Preparar_datos(Vigor, corte ,TLR1,fecha):
+    B = Vigor.copy()
+    date_cols = [
+    "FEMIS", "INIVIG", "FIN_PLAZO",
+    "fecha_credito", "fin_de_vig",
+    "fecha_ini_r", "Fecha_FIN_R"
+    ]
+    # Normalizar TODAS las fechas
+    for col in date_cols:
+     B[col] = pd.to_datetime(B[col], errors="coerce")
+     try:
+        B[col] = B[col].dt.tz_localize(None)
+     except:
+        pass
+
+    corte = pd.to_datetime(corte).tz_localize(None)
+    # Reestructura
+    B["Reestructura"] = np.where(B["Fecha_FIN_R"].notna(), "R", "NR")
+
+    # Conversión de fechas
+    B["FEMIS"] = pd.to_datetime(B["FEMIS"])
+    B["INIVIG"] = pd.to_datetime(B["INIVIG"])
+    B["FIN_PLAZO"] = pd.to_datetime(B["FIN_PLAZO"])
+
+    # Años
+    B["Anio"] = B["FEMIS"].dt.year
+    B["Anio_INI"] = B["INIVIG"].dt.year
+    B["Anio_FIN"] = B["FIN_PLAZO"].dt.year
+
+    # Nuevas fechas base
+    B["INIVIG1"] = pd.to_datetime(B["fecha_credito"])
+    B["Anio_INI1"] = B["INIVIG1"].dt.year
+    B["FIN_PLAZO1"] = pd.to_datetime(B["fin_de_vig"])
+    B["Anio_FIN1"] = B["FIN_PLAZO1"].dt.year
+
+    # Reestructuras
+    B["INIVIG2"] = pd.to_datetime(B["fecha_ini_r"])
+    B["Anio_INI2"] = B["INIVIG2"].dt.year
+    B["FIN_PLAZO2"] = pd.to_datetime(B["Fecha_FIN_R"])
+    B["Anio_FIN2"] = B["FIN_PLAZO1"].dt.year  # igual que en tu código R
+
+    # Variables auxiliares
+    ini = B["INIVIG1"]
+    fin = B["FIN_PLAZO1"]
+    ini1 = B["INIVIG1"]
+    fin1 = B["FIN_PLAZO2"]
+
+    # Función para calcular meses (equivalente a lubridate)
+    def calc_meses(ini, fin):
+        return (
+            (fin.dt.year - ini.dt.year) * 12
+            + (fin.dt.month - ini.dt.month)
+            - (fin.dt.day < ini.dt.day).astype(int)
+        )
+
+    # meses de duración
+    meses_NR = calc_meses(ini, fin)
+    meses_R = calc_meses(ini1, fin1)
+
+    B["meses"] = np.where(B["Reestructura"] == "NR", meses_NR, meses_R)
+
+    # Filtrar por corte
+    corte = pd.to_datetime(corte)
+    K = B[B["FEMIS"] <= corte].copy()
+
+    # ini = pmin(FIN_PLAZO1, corte)
+    ini = pd.Series(
+    np.minimum(K["FIN_PLAZO1"].values, corte),
+    index=K.index
+    )
+
+    fin = K["FIN_PLAZO1"]
+    fin1 = K["FIN_PLAZO2"]
+
+    # Duración remanente
+    dur_NR = (
+        (fin.dt.year - ini.dt.year) * 12
+        + (fin.dt.month - ini.dt.month)
+        - (fin.dt.day < ini.dt.day).astype(int)
+    )
+    
+    # ini = pmin(FIN_PLAZO1, corte)
+    iniR = K["FIN_PLAZO2"].fillna(corte).clip(upper=corte)
+
+    dur_R = (
+        (fin1.dt.year - iniR.dt.year) * 12
+        + (fin1.dt.month - iniR.dt.month)
+        - (fin1.dt.day < iniR.dt.day).astype(int)
+    )
+    K["duracion_remanente"] = np.where(K["Reestructura"] == "NR", dur_NR, dur_R)
+    #Ejemplo = K[K["duracion_remanente"]<0]
+    #Ejemplo[["FIN_PLAZO2"]]
+    K["SABAS"] = np.where(
+     K["Reestructura"] == "NR",
+     K["SABAS"],
+     (K["CAPITALR"])
+    )
+
+    # fecha2
+    K["fecha2"] = np.where(K["Reestructura"] == "NR", fin, fin1)
+    K["fecha2"] = pd.to_datetime(K["fecha2"])
+    #K['prima_anual'] = prima_anual(K, TLR1, fecha)
+    K['prima_N_devengada'] = P_No_devengada(K,fecha)
+    #DUR_RE = K["duracion_remanente"]
+    #K['Factor_VP'] = VP(K, TLR1, fecha, K["duracion_remanente"])
+    return K
+```
+
+```{python eval=FALSE, include=FALSE}
+def Generar_resumen1(K, etiqueta):
+    K1 = K[K['Reestructura'] == etiqueta].copy()  # usar copy para evitar warning
+
+    K1['dup'] = K1[['POLIZA', 'CERTIFICAD']].astype(str).agg('-'.join, axis=1)
+
+    Resumen = (
+        K1
+        .groupby(['DURACION', 'duracion_remanente', 'plazo', 'EDAD', 'INIVIG1'], as_index=False)
+        .agg(
+            SA=('SAOTRAS', 'sum'),
+            CER=('dup', 'nunique')
+        )
+        .drop_duplicates()
+    )
+
+    return Resumen
+```
+
+
+Generar Resumen2
+```{python}
+import numpy as np
+import math as m
+etiqueta = 'NR'
+
+
+def Generar_resumen(K, etiqueta):
+    K1 = K[K['Reestructura'] == etiqueta].copy()  # usar copy para evitar warning
+
+    #K1['dup'] = K1[['POLIZA', 'CERTIFICAD']].astype(str).agg('-'.join, axis=1)
+
+    Resumen = (
+        K1
+        .groupby(['meses', 'duracion_remanente', 'plazo', 'EDAD', 'INIVIG1'], as_index=False)
+        .agg(
+            SA=('SABAS', 'sum'),
+            PE = ('prima_N_devengada','sum')
+            #CER=('dup', 'nunique')
+        )
+        .drop_duplicates()
+    )
+    return Resumen
+```
+
+
+Reserva(no corrido)
+```{python}
+def V(Resumen1, tabla, TLR1,fecha,w):
+  K1 = []
+  w_dict = dict(zip(w['Anio_Vigencia'], w['Nacional']))
+  fila = TLR1.loc[TLR1["Mes"] == fecha]
+  TLR = fila.drop(columns=["Mes"]).values[0]
+  Resumen1['Reserva'] = Resumen1['duracion_remanente']
+  Resumen1['Reserva'] = float(0)
+  Resumen1['GA'] = Resumen1['duracion_remanente']
+  Resumen1['GA'] = float(0)
+  for k7 in range(len(Resumen1['duracion_remanente'])):
+    if Resumen1.loc[k7,'duracion_remanente'] == 0:
+       Resumen1.loc[k7,'Reserva']  = 0
+       Resumen1.loc[k7,'GA']  = 0
+    else:
+     n1 = Resumen1.loc[k7,'duracion_remanente']
+     #n1 = n1+1
+     x = Resumen1.loc[k7,'EDAD']
+     t = Resumen1.loc[k7,'meses'] - Resumen1.loc[k7,'duracion_remanente']
+     t1 = t//12
+     t2 = t%12
+     if t2==0:
+      m4=t1 
+     else: 
+      m4 = t1+1
+     t = m4
+     n2 = n1 //12
+     n3 = n1%12
+     n4 = n2 + 1
+     v_values = np.arange(0, n4, dtype=int)
+     w1 = np.array([w_dict.get(x1 + 1, 0) for x1 in v_values])
+     w1 = 1 - w1
+     a = np.array([ VP(TLR1, fecha, y, y+1) for y in v_values])
+     tasa_ultimo = TLR[int(n4-1)] 
+     a[-1] = a[-1] / ((1 + tasa_ultimo)**((12-n3)/12))
+     b = np.array([mortality(int(x + t + x1), tabla) for x1 in v_values])
+     c = np.array([supervivencia(x1, int(x+t) , tabla) for x1 in v_values])
+     d = np.array([TLR[int(t+x1)]/m.log(1+TLR[int(t+x1)]) for x1 in v_values])
+     resulta_arr = a * b * c * d * w1
+     resulta = np.sum(resulta_arr)
+     resulta_ga = a  * c * d * w1
+     resulta_2  =np.sum(resulta_ga)
+     resulta_2  = .08*resulta_2
+     K1.append([resulta])
+     K1.append([a])
+     K1.append([b])
+     K1.append([c])
+     K1.append([d])
+     K1.append([n1,n2,n3,n4])
+     #K1.append((resulta, a, b,c,d,v_values,n1,n2,n3,n4))
+     #resulta = np.sum(resulta)
+     Resumen1.loc[k7,'Reserva']  = resulta
+     Resumen1.loc[k7,'GA']  = resulta_2
+  K1.append((Resumen1,fila,TLR))
+  return  K1
+```
+
+
+```{python eval=FALSE, include=FALSE}
+import numpy as np
+import math as m
+
+def V1(Resumen1, tabla, TLR1, fecha):
+    K1 = []
+
+    # Extraer fila una sola vez
+    fila = TLR1.loc[TLR1["Mes"] == fecha]
+    TLR = fila.drop(columns=["Mes"]).values[0]
+    w_dict = dict(zip(w['Anio_Vigencia'], w['Nacional']))
+    w1 = np.array([w_dict.get(x1 + 1, 0) for x1 in v_values])
+    # Trabajar con arrays (mucho más rápido)
+    dur_rem = Resumen1["duracion_remanente"].values
+    edad = Resumen1["EDAD"].values
+    duracion = Resumen1["DURACION"].values
+
+    reserva = np.zeros(len(Resumen1))
+
+    for k7 in range(len(dur_rem)):
+
+        if dur_rem[k7] == 0:
+            continue
+
+        n1 = dur_rem[k7]
+        x = edad[k7]
+
+        t = duracion[k7] - n1
+        t1 = t // 12
+        t2 = t % 12
+        m4 = t1 if t2 == 0 else t1 + 1
+        t = m4
+
+        n2 = n1 // 12
+        n3 = n1 % 12
+        n4 = n2 + 1
+
+        v_values = np.arange(n4)
+
+        # Arrays vectorizados parcialmente
+        a = np.array([VP(TLR1, fecha, y, y+1) for y in v_values])
+
+        tasa_ultimo = TLR[n4 - 1]
+        a[-1] /= (1 + tasa_ultimo) ** ((12 - n3) / 12)
+
+        edad_base = int(x + t)
+
+        b = np.array([mortality(edad_base + x1, tabla) for x1 in v_values])
+        c = np.array([supervivencia(x1, edad_base, tabla) for x1 in v_values])
+
+        # vectorizado (sin list comprehension)
+        tasas = TLR[t:t + n4]
+        d = tasas / np.log(1 + tasas)
+
+        resulta_arr = a * b * c * d
+
+        # guardar debug (igual que tu lógica)
+        K1.extend([[resulta_arr], [a], [b], [c], [d], [[n1, n2, n3, n4]]])
+
+        reserva[k7] = np.sum(resulta_arr)
+
+    Resumen1["Reserva"] = reserva
+
+    K1.append((Resumen1, fila, TLR))
+
+    return K1
+```
+
+
+
+```{python}
+etiqueta = "NR"
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+corte = pd.to_datetime('2025-12-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R = V(Resumen1, tabla, TLR1,fecha,w)
+w.columns
+
+fecha = pd.to_datetime('2025-09-01 00:00:00')
+corte = pd.to_datetime('2025-09-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R1 = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2025-03-01 00:00:00')
+corte = pd.to_datetime('2025-03-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R2 = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-03-01 00:00:00')
+corte = pd.to_datetime('2026-03-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R3 = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-05-01 00:00:00')
+corte = pd.to_datetime('2026-05-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R4 = V(Resumen1, tabla, TLR1,fecha,w)
+
+
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+corte = pd.to_datetime('2026-06-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R5 = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-07-01 00:00:00')
+corte = pd.to_datetime('2026-07-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R6 = V(Resumen1, tabla, TLR1,fecha,w)
+```
+
+```{python}
+etiqueta = "NR"
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+corte = pd.to_datetime('2026-06-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R5 = V(Resumen1, tabla, TLR1,fecha,w)
+
+etiqueta = "R"
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+corte = pd.to_datetime('2026-06-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R5_nr = V(Resumen1, tabla, TLR1,fecha,w)
+```
+
+
+
+```{python}
+R1_nr = R1
+R2_nr = R2
+R1_nr[-1][0]
+```
+
+
+```{python}
+etiqueta = "R"
+fecha = pd.to_datetime('2025-12-01 00:00:00')
+corte = pd.to_datetime('2025-12-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+
+fecha = pd.to_datetime('2025-09-01 00:00:00')
+corte = pd.to_datetime('2025-09-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R1_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2025-03-01 00:00:00')
+corte = pd.to_datetime('2025-03-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R2_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-03-01 00:00:00')
+corte = pd.to_datetime('2026-03-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R3_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-05-01 00:00:00')
+corte = pd.to_datetime('2026-05-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R4_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+
+fecha = pd.to_datetime('2026-06-01 00:00:00')
+corte = pd.to_datetime('2026-06-30 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R5_nr = V(Resumen1, tabla, TLR1,fecha,w)
+
+fecha = pd.to_datetime('2026-07-01 00:00:00')
+corte = pd.to_datetime('2026-07-31 00:00:00')
+#K.columns
+K = Preparar_datos(Vigor, corte ,TLR1,fecha)
+#K['SABAS']
+Resumen1 = Generar_resumen(K,etiqueta)
+#Resumen1['SA'].sum()
+#Resumen2 = Resumen1.head(5)
+R6_nr = V(Resumen1, tabla, TLR1,fecha,w)
+```
+
+
+
+Validaciones
+```{python}
+etiqueta = 'NR'
+Resumen2 = Resumen1
+ZX = V(Resumen2, tabla, TLR1,fecha)
+ZX
+ZX = ZX[:-45]
+tam = len(ZX)
+import pandas as pd
+lista = ZX
+len(Z_df)
+import pandas as pd
+
+def concatenar_lista(lista):
+    dfs = []
+
+    for x in lista:
+        # Si ya es DataFrame
+        if isinstance(x, pd.DataFrame):
+            df = x.copy()
+
+        # Si es Series
+        elif isinstance(x, pd.Series):
+            df = x.to_frame().T
+
+        # Si es lista, vector o array
+        else:
+            df = pd.DataFrame(x if isinstance(x[0], (list, tuple)) else [x])
+
+        dfs.append(df)
+
+    # Concatenar verticalmente sin perder info
+    resultado = pd.concat(dfs, axis=0, ignore_index=True)
+
+    return resultado
+
+resultado = concatenar_lista(lista)
+
+
+resultado = R[-1][0]
+# Crear un writer (libro de Excel)
+with pd.ExcelWriter("COBERTURA_BASICA.xlsx", engine="openpyxl") as writer:
+       
+        
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+        hoja = "Hoja_" + str(2)
+        df1.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+        hoja = "Hoja_" + str(3)
+        df2.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+
+```
+
+```{python}
+etiqueta = 'NR'
+Resumen3 = Resumen1
+Resumen2 = Resumen1
+Resumen2 = Resumen2.reset_index
+Resumen2['CER']
+ZX = V(Resumen2, tabla, TLR1,fecha)
+JK = len(ZX)
+AS = ZX[JK-1][0]
+Resumen1['SA'].sum()
+R = AS['Reserva']*AS['SA']
+R= AS['SA']
+R.sum()
+tam = len(ZX)
+YU = ZX[JK-1][0] ['Reserva']*ZX[JK-1][0] ['SA']
+YU.sum()
+import pandas as pd
+#lista = ZX
+JK = len(ZX)
+import pandas as pd
+with pd.ExcelWriter("Reserva_C2.xlsx", engine="openpyxl") as writer:
+        resultado = ZX[JK-1][0]
+        hoja = "Hoja_" + str(1)
+        resultado.to_excel(
+            writer,
+            sheet_name=hoja,
+            startrow=0,
+            index=False
+        )
+```
+
+
